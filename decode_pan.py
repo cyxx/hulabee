@@ -26,9 +26,9 @@ def descramble(name):
 			k = ((r << 8) - r + 0x8000) >> 16;
 			assert k >= 0 and k <= 255
 			t[j], t[k] = t[k], t[j]
-	d = bytearray(256)
+	d = [ 0 for i in range(256) ]
 	for i in range(256):
-		d[t[i]] = i
+		d[t[i]] = chr(i)
 	return d
 
 ASSET_INI = 0
@@ -63,8 +63,9 @@ class AssetPan:
 	def dump(self, f, align, alphabet, fname):
 		f.seek(self.offset + align)
 		o = open(fname, 'wb')
-		for b in f.read(self.size):
-			o.write(chr(alphabet[ord(b)]))
+		b = bytearray(f.read(self.size))
+		for i in range(len(b)):
+			o.write(alphabet[b[i]])
 		o.close()
 
 def decode_pan(f, alphabet, dir, bundle):
@@ -84,13 +85,14 @@ def decode_pan(f, alphabet, dir, bundle):
 	for i, asset in enumerate(assets):
 		align = 1
 		if asset.type == ASSET_BYTECODE:
+			f.seek(asset.offset)
 			sob = f.read(32)
 			for i, c in enumerate(sob):
 				if ord(c) == 0:
 					sob = sob[:i]
 					break
 			print 'bytecode:%s' % sob
-			align = len(sob) + 1
+			align = len(sob) + 1 - 32
 		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS[asset.type])
 		asset.dump(f, align, alphabet, os.path.join(dir, fname))
 
@@ -105,5 +107,5 @@ for arg in sys.argv[1:]:
 		os.mkdir(name)
 	except:
 		pass
-	f = open(arg)
+	f = open(arg, 'rb')
 	decode_pan(f, alphabet, name, bundle)
