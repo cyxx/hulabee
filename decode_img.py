@@ -10,12 +10,13 @@ def decode_img(f, fname):
 	if header[:8] == 'FFIMGAMI':
 		unk = struct.unpack('<I', header[8:12])[0]
 		image = None
+		rgb555 = False
 		while True:
 			tag = f.read(4)
 			if not tag:
 				break
 			size = struct.unpack('<I', f.read(4))[0]
-			print 'tag %s size %d' % (tag, size)
+			# print 'tag %s size %d' % (tag, size)
 			if tag == 'DAEH':
 				assert size == 24
 				buf = f.read(size)
@@ -31,8 +32,8 @@ def decode_img(f, fname):
 				if b1 == 0x80:
 					image = Image.new('P', (w, h))
 				else:
-					# RGB565
-					break
+					rgb555 = True
+					image = Image.new('RGB', (w, h))
 			elif tag == 'TULC':
 				assert size == 256 * 4
 				rgba = f.read(size)
@@ -43,7 +44,18 @@ def decode_img(f, fname):
 					palette.append(ord(rgba[i + 3]))
 				image.putpalette(palette)
 			elif tag == 'ATAD':
-				image.putdata(f.read(size))
+				if rgb555:
+					print 'convert rgb555'
+					data = []
+					for i in xrange(0, size, 2):
+						color = struct.unpack('<H', f.read(2))[0]
+						r = (color >> 10) << 3
+						g = ((color >> 5) & 0x1f) << 3
+						b = (color & 0x1f) << 3
+						data.append((b << 16) | (g << 8) | r)
+					image.putdata(data)
+				else:
+					image.putdata(f.read(size))
 			else:
 				break
 		if image is not None:
