@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from PIL import Image
 import os
@@ -7,7 +7,7 @@ import sys
 
 def decode_img(f, fname):
 	header = f.read(12)
-	if header[:8] == 'FFIMGAMI':
+	if header[:8] == b'FFIMGAMI':
 		unk = struct.unpack('<I', header[8:12])[0]
 		image = None
 		rgb555 = False
@@ -17,7 +17,7 @@ def decode_img(f, fname):
 				break
 			size = struct.unpack('<I', f.read(4))[0]
 			# print 'tag %s size %d' % (tag, size)
-			if tag == 'DAEH':
+			if tag == b'DAEH':
 				assert size == 24
 				buf = f.read(size)
 				compression = struct.unpack('<I', buf[0:4])[0]
@@ -28,26 +28,26 @@ def decode_img(f, fname):
 				assert b1 == 0x80 or b1 == 0x8000
 				b2 = struct.unpack('<I', buf[16:20])[0]
 				assert b2 == 0 or b2 == 0x4010
-				assert buf[20:24] == 'ENON'
+				assert buf[20:24] == b'ENON'
 				if b1 == 0x80:
 					image = Image.new('P', (w, h))
 				else:
 					rgb555 = True
 					image = Image.new('RGB', (w, h))
-			elif tag == 'TULC':
+			elif tag == b'TULC':
 				assert size == 256 * 4
 				rgba = f.read(size)
 				palette = []
-				for i in xrange(0, 1024, 4):
-					palette.append(ord(rgba[i + 1]))
-					palette.append(ord(rgba[i + 2]))
-					palette.append(ord(rgba[i + 3]))
+				for i in range(0, 1024, 4):
+					palette.append(rgba[i + 1])
+					palette.append(rgba[i + 2])
+					palette.append(rgba[i + 3])
 				image.putpalette(palette)
-			elif tag == 'ATAD':
+			elif tag == b'ATAD':
 				if rgb555:
-					print 'convert rgb555'
+					print('convert rgb555')
 					data = []
-					for i in xrange(0, size, 2):
+					for i in range(0, size, 2):
 						color = struct.unpack('<H', f.read(2))[0]
 						r = (color >> 10) << 3
 						g = ((color >> 5) & 0x1f) << 3
@@ -62,5 +62,5 @@ def decode_img(f, fname):
 			image.save(os.path.splitext(fname)[0] + '.png')
 
 for arg in sys.argv[1:]:
-	f = open(arg)
+	f = open(arg, 'rb')
 	decode_img(f, arg)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Extract/Decode Hulabee Entertainment .pan files
 #
@@ -12,7 +12,7 @@ def rand16_gen(r):
 	return (r * 0x6255 + 0x3619) & 0xFFFF
 
 def descramble(name):
-	print 'name:%s' % name
+	print('name:%s' % name)
 	t = [ i for i in range(256) ]
 	hash = 0
 	for i, c in enumerate(name):
@@ -75,11 +75,11 @@ def decode_pan(f, filesize, alphabet, dir, bundle):
 	size = struct.unpack("<I", f.read(4))[0]
 	count = struct.unpack("<I", f.read(4))[0]
 	version = struct.unpack("<I", f.read(4))[0]
-	print 'size:%d count:%d version:%d' % (size, count, version)
+	print('size:%d count:%d version:%d' % (size, count, version))
 	assert version == 3 or version == 5
 	if version == 5:
 		flags = struct.unpack("<I", f.read(4))[0]
-		print 'flags:0x%x' % flags
+		print('flags:0x%x' % flags)
 	f.read(512) # RSA signature ?
 	f.read(512) # RSA public key ?
 	assets = []
@@ -94,7 +94,7 @@ def decode_pan(f, filesize, alphabet, dir, bundle):
 				if ord(c) == 0:
 					name = name[:i]
 					break
-			print 'asset:%d type:%d filename:%s' % (i, asset.type, name)
+			print('asset:%d type:%d filename:%s' % (i, asset.type, name))
 		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
 		asset.dump(f, start, alphabet, os.path.join(dir, fname))
 		offset = asset.offset + asset.size
