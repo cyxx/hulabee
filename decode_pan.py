@@ -3,6 +3,8 @@
 # Extract/Decode Hulabee Entertainment .pan files
 #
 
+import base64
+import hashlib
 import os
 import os.path
 import struct
@@ -10,6 +12,9 @@ import sys
 
 # use original asset filenames if present
 USE_PAN_FILENAMES = True
+
+# verify RSA signature of the pan file header
+VERIFY_SIGNATURE = False
 
 def rand16_gen(r):
 	return (r * 0x6255 + 0x3619) & 0xFFFF
@@ -73,6 +78,43 @@ class AssetPan:
 			o.write(alphabet[b[i]])
 		o.close()
 
+# 4 bytes for header field, 512 bytes per signature longint
+PAN_HEADER_SIZE_V5 = 5 * 4 + 2 * 512
+
+# 4 bytes per field, 16 bytes for hash
+PAN_ENTRY_SIZE = 4 * 4 + 16
+
+def decode_lint(data, offset):
+	count = struct.unpack('<H', data[offset:offset + 2])[0]
+	offset += 2
+	return (int.from_bytes(data[offset:offset + count * 2], 'little'), (count + 1) * 2)
+
+class RsaSignature:
+	def __init__(self, f):
+		signature = base64.b64decode(f.read(512))
+		publickey = base64.b64decode(f.read(512))
+		self.signature, size = decode_lint(signature, 0)
+		offset = 0
+		self.pubkeyexp, size = decode_lint(publickey, offset)
+		offset += size
+		self.pubkeymod, size = decode_lint(publickey, offset)
+		offset += size
+		# pubkey mod bit length : LE16
+		# pubkey mod byte length : LE16
+	def verify(self, f, count):
+		# PKCS1 - block type : LE16, padding (\xff), zero byte, digest (RIPEMD-160)
+		message = pow(self.signature, self.pubkeyexp, self.pubkeymod)
+		H1 = message.to_bytes(128, 'big')
+		size = PAN_HEADER_SIZE_V5 + count * PAN_ENTRY_SIZE
+		f.seek(0)
+		data = bytearray(f.read(size))
+		# exclude signature data from the hash (including public key !)
+		data[20:1044] = [ 0 ] * 1024
+		h = hashlib.new('ripemd160')
+		h.update(data)
+		H2 = h.digest()
+		assert H1[-20:] == H2
+
 def decode_pan(f, filesize, alphabet, dname, bundle):
 	assert f.read(4) == b'NAPA'
 	size = struct.unpack("<I", f.read(4))[0]
@@ -83,9 +125,11 @@ def decode_pan(f, filesize, alphabet, dname, bundle):
 	if version == 5:
 		flags = struct.unpack("<I", f.read(4))[0]
 		print('flags:0x%x' % flags)
-	f.read(512) # RSA signature ?
-	f.read(512) # RSA public key ?
+		# &1: read external signature public key
+	sign = RsaSignature(f)
 	assets = [ AssetPan(f) for i in range(count) ]
+	if VERIFY_SIGNATURE and version == 5:
+		sign.verify(f, count)
 	for i, asset in enumerate(assets):
 		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
 		start = (assets[i + 1].offset if (i + 1 < len(assets)) else filesize) - (asset.offset + asset.size)
