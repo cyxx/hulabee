@@ -8,6 +8,9 @@ import os.path
 import struct
 import sys
 
+# use original asset filenames if present
+USE_PAN_FILENAMES = True
+
 def rand16_gen(r):
 	return (r * 0x6255 + 0x3619) & 0xFFFF
 
@@ -70,7 +73,7 @@ class AssetPan:
 			o.write(alphabet[b[i]])
 		o.close()
 
-def decode_pan(f, filesize, alphabet, dir, bundle):
+def decode_pan(f, filesize, alphabet, dname, bundle):
 	assert f.read(4) == b'NAPA'
 	size = struct.unpack("<I", f.read(4))[0]
 	count = struct.unpack("<I", f.read(4))[0]
@@ -82,21 +85,21 @@ def decode_pan(f, filesize, alphabet, dir, bundle):
 		print('flags:0x%x' % flags)
 	f.read(512) # RSA signature ?
 	f.read(512) # RSA public key ?
-	assets = []
-	for i in range(count):
-		assets.append(AssetPan(f))
+	assets = [ AssetPan(f) for i in range(count) ]
 	for i, asset in enumerate(assets):
+		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
 		start = (assets[i + 1].offset if (i + 1 < len(assets)) else filesize) - (asset.offset + asset.size)
 		if start > 1:
 			f.seek(asset.offset)
 			name = f.read(start)
-			for i, c in enumerate(name):
-				if c == 0:
-					name = name[:i]
-					break
-			print('asset:%d type:%d filename:%s' % (i, asset.type, name))
-		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
-		asset.dump(f, start, alphabet, os.path.join(dir, fname))
+			try:
+				name = name[:-1].decode('ascii')
+				print('asset:%d type:%d filename:%s' % (i, asset.type, name))
+				if USE_PAN_FILENAMES:
+					fname = name
+			except:
+				start = 0
+		asset.dump(f, start, alphabet, os.path.join(dname, fname))
 		offset = asset.offset + asset.size
 
 for arg in sys.argv[1:]:
