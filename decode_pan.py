@@ -39,7 +39,8 @@ ASSET_RIFF = 4
 ASSET_ID3 = 7
 ASSET_STRINGS = 8
 ASSET_JPEG = 9
-ASSET_UNKNOWN = 10
+ASSET_PNG = 15
+ASSET_VORBIS = 17
 
 ASSET_EXTENSIONS = {
 	ASSET_INI: 'ini',
@@ -50,7 +51,8 @@ ASSET_EXTENSIONS = {
 	ASSET_ID3: 'mp3',
 	ASSET_STRINGS: 'txt',
 	ASSET_JPEG: 'jpg',
-	ASSET_UNKNOWN: 'dat',
+	ASSET_PNG: 'png',
+	ASSET_VORBIS: 'ogg',
 }
 
 class AssetPan:
@@ -60,15 +62,15 @@ class AssetPan:
 		self.offset = struct.unpack("<I", f.read(4))[0]
 		self.size = struct.unpack("<I", f.read(4))[0]
 		f.read(16) # hash
-	def dump(self, f, align, alphabet, fname):
-		f.seek(self.offset + align)
+	def dump(self, f, start, alphabet, fname):
+		f.seek(self.offset + start)
 		o = open(fname, 'wb')
 		b = bytearray(f.read(self.size))
 		for i in range(len(b)):
 			o.write(alphabet[b[i]])
 		o.close()
 
-def decode_pan(f, alphabet, dir, bundle):
+def decode_pan(f, filesize, alphabet, dir, bundle):
 	assert f.read(4) == 'NAPA'
 	size = struct.unpack("<I", f.read(4))[0]
 	count = struct.unpack("<I", f.read(4))[0]
@@ -77,24 +79,25 @@ def decode_pan(f, alphabet, dir, bundle):
 	assert version == 3 or version == 5
 	if version == 5:
 		flags = struct.unpack("<I", f.read(4))[0]
+		print 'flags:0x%x' % flags
 	f.read(512) # RSA signature ?
 	f.read(512) # RSA public key ?
 	assets = []
 	for i in range(count):
 		assets.append(AssetPan(f))
 	for i, asset in enumerate(assets):
-		align = 1
-		if asset.type == ASSET_BYTECODE:
+		start = (assets[i + 1].offset if (i + 1 < len(assets)) else filesize) - (asset.offset + asset.size)
+		if start > 1:
 			f.seek(asset.offset)
-			sob = f.read(32)
-			for i, c in enumerate(sob):
+			name = f.read(start)
+			for i, c in enumerate(name):
 				if ord(c) == 0:
-					sob = sob[:i]
+					name = name[:i]
 					break
-			print 'bytecode:%s' % sob
-			align = len(sob) + 1 - 32
-		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS[asset.type])
-		asset.dump(f, align, alphabet, os.path.join(dir, fname))
+			print 'asset:%d type:%d filename:%s' % (i, asset.type, name)
+		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
+		asset.dump(f, start, alphabet, os.path.join(dir, fname))
+		offset = asset.offset + asset.size
 
 for arg in sys.argv[1:]:
 	name = os.path.basename(arg)
@@ -107,5 +110,6 @@ for arg in sys.argv[1:]:
 		os.mkdir(name)
 	except:
 		pass
+	size = os.path.getsize(arg)
 	f = open(arg, 'rb')
-	decode_pan(f, alphabet, name, bundle)
+	decode_pan(f, size, alphabet, name, bundle)
