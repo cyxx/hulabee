@@ -28,7 +28,7 @@ def descramble(name):
 			t[j], t[k] = t[k], t[j]
 	d = [ 0 for i in range(256) ]
 	for i in range(256):
-		d[t[i]] = chr(i)
+		d[t[i]] = bytes([i])
 	return d
 
 ASSET_INI = 0
@@ -65,13 +65,13 @@ class AssetPan:
 	def dump(self, f, start, alphabet, fname):
 		f.seek(self.offset + start)
 		o = open(fname, 'wb')
-		b = bytearray(f.read(self.size))
+		b = f.read(self.size)
 		for i in range(len(b)):
 			o.write(alphabet[b[i]])
 		o.close()
 
 def decode_pan(f, filesize, alphabet, dir, bundle):
-	assert f.read(4) == 'NAPA'
+	assert f.read(4) == b'NAPA'
 	size = struct.unpack("<I", f.read(4))[0]
 	count = struct.unpack("<I", f.read(4))[0]
 	version = struct.unpack("<I", f.read(4))[0]
@@ -91,7 +91,7 @@ def decode_pan(f, filesize, alphabet, dir, bundle):
 			f.seek(asset.offset)
 			name = f.read(start)
 			for i, c in enumerate(name):
-				if ord(c) == 0:
+				if c == 0:
 					name = name[:i]
 					break
 			print('asset:%d type:%d filename:%s' % (i, asset.type, name))
