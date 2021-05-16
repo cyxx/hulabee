@@ -79,7 +79,7 @@ class AssetPan:
 		self.hash = bytearray(f.read(16))
 		bswap_digest(self.hash)
 	def dump(self, f, start, alphabet, fname):
-		if VERIFY_ASSET_HASH and self.size != 0:
+		if VERIFY_ASSET_HASH:
 			f.seek(self.offset + start)
 			b = f.read(self.size)
 			h = hashlib.md5(b)
@@ -153,6 +153,7 @@ def decode_pan(f, alphabet, dirname, bundle):
 	assets = [ AssetPan(f) for i in range(count) ]
 	if VERIFY_PAN_SIGNATURE and version == 5:
 		sign.verify(f, count)
+	assets = [ asset for asset in assets if asset.size != 0 ]
 	for i, asset in enumerate(assets):
 		f.seek(asset.offset)
 		assetname = read_cstr(f)
