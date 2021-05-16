@@ -62,5 +62,5 @@ def decode_img(f, fname):
 			image.save(os.path.splitext(fname)[0] + '.png')
 
 for arg in sys.argv[1:]:
-	f = open(arg, 'rb')
-	decode_img(f, arg)
+	with open(arg, 'rb') as f:
+		decode_img(f, arg)

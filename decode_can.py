@@ -40,19 +40,19 @@ def decode_can(f, size, fname):
 		offsets.append(offset)
 	palette = read_palette(f, palette, offsets[0])
 	for i, offset in enumerate(offsets):
-		sz = (offsets[i + 1] if (i + 1 < len(offsets)) else size) - offset
 		f.seek(offset)
-		decode_bin(f, sz, palette, fname, i)
+		w = struct.unpack('<I', f.read(4))[0]
+		if w == 0:
+			continue
+		h = struct.unpack('<I', f.read(4))[0]
+		if h == 0:
+			continue
+		c = f.read(4)
+		if c != b'8LRX':
+			continue
+		decode_xrl8(f, w, h, palette, fname, i)
 
-def decode_bin(f, size, palette, fname, num):
-	w = struct.unpack('<I', f.read(4))[0]
-	h = struct.unpack('<I', f.read(4))[0]
-	if w == 0 or h == 0:
-		return
-	c = f.read(4)
-	if c != b'8LRX':
-		print('Unhandled compression ' + str(c))
-		return
+def decode_xrl8(f, w, h, palette, fname, num):
 	image = Image.new('P', (w, h))
 	size = struct.unpack('<I', f.read(4))[0]
 	data = f.read(size)
@@ -74,15 +74,14 @@ def decode_bin(f, size, palette, fname, num):
 				offset += 1
 				color = data[offset]
 				offset += 1
-				for x in range(count):
-					buf[dst + x] = color
+				buf[dst:dst + count] = [ color ] * count
 				dst += count
 			elif code == 2 or code == 4:
 				count = data[offset]
-				for x in range(count):
-					buf[dst + x] = data[offset + 1 + x]
+				offset += 1
+				buf[dst:dst + count] = data[offset:offset + count]
 				dst += count
-				offset += 1 + count
+				offset += count
 		assert offset == next_offset
 	image.putpalette(palette)
 	image.putdata(buf)
@@ -90,5 +89,5 @@ def decode_bin(f, size, palette, fname, num):
 
 for arg in sys.argv[1:]:
 	size = os.path.getsize(arg)
-	f = open(arg, 'rb')
-	decode_can(f, size, arg)
+	with open(arg, 'rb') as f:
+		decode_can(f, size, arg)

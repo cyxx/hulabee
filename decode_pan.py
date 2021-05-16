@@ -11,10 +11,13 @@ import struct
 import sys
 
 # use original asset filenames if present
-USE_PAN_FILENAMES = True
+USE_ASSET_FILENAMES = True
+
+# verify MD5 hash of assets
+VERIFY_ASSET_HASH = True
 
 # verify RSA signature of the pan file header
-VERIFY_SIGNATURE = False
+VERIFY_PAN_SIGNATURE = True
 
 def rand16_gen(r):
 	return (r * 0x6255 + 0x3619) & 0xFFFF
@@ -34,7 +37,7 @@ def descramble(name):
 			k = ((r << 8) - r + 0x8000) >> 16;
 			assert k >= 0 and k <= 255
 			t[j], t[k] = t[k], t[j]
-	d = [ 0 for i in range(256) ]
+	d = [ 0 ] * 256
 	for i in range(256):
 		d[t[i]] = bytes([i])
 	return d
@@ -63,22 +66,32 @@ ASSET_EXTENSIONS = {
 	ASSET_VORBIS: 'ogg',
 }
 
+def bswap_digest(d):
+	for x in range(0, len(d), 4):
+		d[x], d[x + 1], d[x + 2], d[x + 3] = d[x + 3], d[x + 2], d[x + 1], d[x]
+
 class AssetPan:
 	def __init__(self, f):
 		self.id = struct.unpack("<I", f.read(4))[0]
 		self.type = struct.unpack("<I", f.read(4))[0]
 		self.offset = struct.unpack("<I", f.read(4))[0]
 		self.size = struct.unpack("<I", f.read(4))[0]
-		f.read(16) # hash
+		self.hash = bytearray(f.read(16))
+		bswap_digest(self.hash)
 	def dump(self, f, start, alphabet, fname):
-		f.seek(self.offset + start)
-		o = open(fname, 'wb')
-		b = f.read(self.size)
-		for i in range(len(b)):
-			o.write(alphabet[b[i]])
-		o.close()
+		if VERIFY_ASSET_HASH and self.size != 0:
+			f.seek(self.offset + start)
+			b = f.read(self.size)
+			h = hashlib.md5(b)
+			assert self.hash == h.digest()
+		with open(fname, 'wb') as o:
+			f.seek(self.offset + start)
+			b = f.read(self.size)
+			for i in range(len(b)):
+				o.write(alphabet[b[i]])
+			o.close()
 
-# 4 bytes for header field, 512 bytes per signature longint
+# 4 bytes per header field, 512 bytes per signature longint
 PAN_HEADER_SIZE_V5 = 5 * 4 + 2 * 512
 
 # 4 bytes per field, 16 bytes for hash
@@ -91,20 +104,21 @@ def decode_lint(data, offset):
 
 class RsaSignature:
 	def __init__(self, f):
-		signature = base64.b64decode(f.read(512))
-		publickey = base64.b64decode(f.read(512))
-		self.signature, size = decode_lint(signature, 0)
-		offset = 0
-		self.pubkeyexp, size = decode_lint(publickey, offset)
-		offset += size
-		self.pubkeymod, size = decode_lint(publickey, offset)
-		offset += size
-		# pubkey mod bit length : LE16
-		# pubkey mod byte length : LE16
+		self.signature = base64.b64decode(f.read(512))
+		self.publickey = base64.b64decode(f.read(512))
 	def verify(self, f, count):
+		signature, size = decode_lint(self.signature, 0)
+		offset = 0
+		pubkeyexp, size = decode_lint(self.publickey, offset)
+		offset += size
+		pubkeymod, size = decode_lint(self.publickey, offset)
+		offset += size
+		modbitlen = struct.unpack('<H', self.publickey[offset:offset + 2])[0]
+		offset += 2
+		modbytelen = struct.unpack('<H', self.publickey[offset:offset + 2])[0]
 		# PKCS1 - block type : LE16, padding (\xff), zero byte, digest (RIPEMD-160)
-		message = pow(self.signature, self.pubkeyexp, self.pubkeymod)
-		H1 = message.to_bytes(128, 'big')
+		message = pow(signature, pubkeyexp, pubkeymod)
+		H1 = message.to_bytes(modbytelen, 'big')
 		size = PAN_HEADER_SIZE_V5 + count * PAN_ENTRY_SIZE
 		f.seek(0)
 		data = bytearray(f.read(size))
@@ -115,7 +129,16 @@ class RsaSignature:
 		H2 = h.digest()
 		assert H1[-20:] == H2
 
-def decode_pan(f, filesize, alphabet, dname, bundle):
+def read_cstr(f):
+	s = b''
+	while True:
+		c = f.read(1)
+		if c == b'\x00':
+			break
+		s += c
+	return s.decode('ascii')
+
+def decode_pan(f, alphabet, dirname, bundle):
 	assert f.read(4) == b'NAPA'
 	size = struct.unpack("<I", f.read(4))[0]
 	count = struct.unpack("<I", f.read(4))[0]
@@ -128,23 +151,17 @@ def decode_pan(f, filesize, alphabet, dname, bundle):
 		# &1: read external signature public key
 	sign = RsaSignature(f)
 	assets = [ AssetPan(f) for i in range(count) ]
-	if VERIFY_SIGNATURE and version == 5:
+	if VERIFY_PAN_SIGNATURE and version == 5:
 		sign.verify(f, count)
 	for i, asset in enumerate(assets):
-		fname = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
-		start = (assets[i + 1].offset if (i + 1 < len(assets)) else filesize) - (asset.offset + asset.size)
-		if start > 1:
-			f.seek(asset.offset)
-			name = f.read(start)
-			try:
-				name = name[:-1].decode('ascii')
-				print('asset:%d type:%d filename:%s' % (i, asset.type, name))
-				if USE_PAN_FILENAMES:
-					fname = name
-			except:
-				start = 0
-		asset.dump(f, start, alphabet, os.path.join(dname, fname))
-		offset = asset.offset + asset.size
+		f.seek(asset.offset)
+		assetname = read_cstr(f)
+		if assetname and USE_ASSET_FILENAMES:
+			print('asset:%d type:%d filename:%s' % (i, asset.type, assetname))
+			filename = assetname
+		else:
+			filename = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
+		asset.dump(f, len(assetname) + 1, alphabet, os.path.join(dirname, filename))
 
 for arg in sys.argv[1:]:
 	name = os.path.basename(arg)
@@ -157,6 +174,5 @@ for arg in sys.argv[1:]:
 		os.mkdir(name)
 	except:
 		pass
-	size = os.path.getsize(arg)
-	f = open(arg, 'rb')
-	decode_pan(f, size, alphabet, name, bundle)
+	with open(arg, 'rb') as f:
+		decode_pan(f,  alphabet, name, bundle)
