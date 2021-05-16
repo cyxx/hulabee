@@ -11,14 +11,18 @@ static const char *LOG_FILENAME = "whisk.log";
 
 static const bool TRACE_OPCODES = true;
 
+static const bool DUMP_AFTER_BOOT = true;
+
 static FILE *_out;
 
 static uintptr_t _hostdbg_ptr;
 
+static uint32_t _current_frame;
+
 // host debug interface (Sauce Interpreter)
 struct hostdbg_vtbl {
 	void *f00;
-	void *f04_load_class;
+	void (*__thiscall f04_load_class)(uintptr_t, const char *);
 	void *f08;
 	void (*__thiscall f0c_dump_current_thread)(uintptr_t);
 	void (*__thiscall f10_dump_class)(uintptr_t, uint32_t);
@@ -77,18 +81,14 @@ static void hostdbg_cmd(const char *s) {
 	(((struct hostdbg_vtbl *)vtbl)->f98_cmd)(_hostdbg_ptr, s);
 }
 
-static __thiscall void hostdbg_f90_debug(uintptr_t obj, const char *s, ...) {
-	char buf[1024];
-	va_list va;
-	va_start(va, s);
-	vsprintf(buf, s, va);
-	va_end(va);
-	fprintf(_out, "HOST: %s", buf);
-}
-
 static void hostdbg_init() {
 	uintptr_t vtbl = *(const uintptr_t *)_hostdbg_ptr;
 	(((struct hostdbg_vtbl *)vtbl)->f28_log_asset_load)(_hostdbg_ptr, 1);
+	if (TRACE_OPCODES) {
+		// enable opcodes tracing
+		hostdbg_cmd("opcodes");
+		hostdbg_cmd("trace");
+	}
 }
 
 static __stdcall void f00_log(void *debug_obj, uint32_t mask, const char *s, ...) {
@@ -106,9 +106,12 @@ static __stdcall void f04_init(uintptr_t hostdbg_ptr) {
 	hostdbg_init();
 }
 
-static __stdcall void f08(uint32_t code) {
+static __stdcall void f08_boot(uint32_t code) {
 	// called if boot()V returns != 0
 	assert(code == 2000001);
+	if (DUMP_AFTER_BOOT) {
+		hostdbg_dump();
+	}
 }
 
 static __stdcall void f0c_call_stack(int a, int b) {
@@ -138,16 +141,7 @@ static __stdcall void f20(const char *a, const char *b, const char *(*__stdcall 
 }
 
 static __stdcall void f28_frame() {
-	static int frame;
-	if (frame == 0) {
-		hostdbg_dump();
-		if (TRACE_OPCODES) {
-			// enable opcodes tracing
-			hostdbg_cmd("opcodes");
-			hostdbg_cmd("trace");
-		}
-	}
-	++frame;
+	++_current_frame;
 }
 
 static __stdcall void f30(uint32_t a) {
@@ -162,7 +156,7 @@ static __stdcall void f_stub() {
 static void *funcs_tbl[] = {
 	f00_log,
 	f04_init,
-	f08,
+	f08_boot,
 	f0c_call_stack,
 	f10_fini,
 	f14_breakpoint,
