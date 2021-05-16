@@ -13,9 +13,12 @@ ESauce Engine Error: %s
 name="Hulabee.ESauce.Engine"
 ```
 
-This repository contains some code to extract the assets from .pan files.
+This repository contains :
 
-The 'pan_decoder' has been tested with the following games :
+* a version of [whisk.dll](https://www.dropbox.com/s/pey60eh8rnqftnm/whisk.dll?dl=0) to enable VM opcodes tracing
+* some scripts to extract and convert assets from .pan files
+
+The `pan_decoder` has been tested with the following games :
 
 * [Sonny's Race for Chocolatey Taste](http://www.mobygames.com/game/sonnys-race-for-chocolatey-taste)
 * [Moop and Dreadly in the Treasure on Bing Bong Island](http://www.mobygames.com/game/moop-and-dreadly-in-the-treasure-on-bing-bong-island)
