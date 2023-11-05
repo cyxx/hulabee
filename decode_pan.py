@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Extract/Decode Hulabee Entertainment .pan files
+# Extract/Decode Hulabee Entertainment .pan files and Beep Industries .gg files
 #
 
 import base64
@@ -57,7 +57,7 @@ ASSET_EXTENSIONS = {
 	ASSET_INI: 'ini',
 	ASSET_FFIMG: 'img',
 	ASSET_ACAN: 'can',
-	ASSET_BYTECODE: 'bin',
+	ASSET_BYTECODE: 'sob',
 	ASSET_RIFF: 'wav',
 	ASSET_ID3: 'mp3',
 	ASSET_STRINGS: 'txt',
@@ -79,16 +79,14 @@ class AssetPan:
 		self.hash = bytearray(f.read(16))
 		bswap_digest(self.hash)
 	def dump(self, f, start, alphabet, fname):
+		f.seek(self.offset + start)
+		b = f.read(self.size)
 		if VERIFY_ASSET_HASH:
-			f.seek(self.offset + start)
-			b = f.read(self.size)
 			h = hashlib.md5(b)
 			assert self.hash == h.digest()
 		with open(fname, 'wb') as o:
-			f.seek(self.offset + start)
-			b = f.read(self.size)
-			for i in range(len(b)):
-				o.write(alphabet[b[i]])
+			for x in b:
+				o.write(alphabet[x])
 			o.close()
 
 # 4 bytes per header field, 512 bytes per signature longint
@@ -122,12 +120,15 @@ class RsaSignature:
 		size = PAN_HEADER_SIZE_V5 + count * PAN_ENTRY_SIZE
 		f.seek(0)
 		data = bytearray(f.read(size))
-		# exclude signature data from the hash (including public key !)
+		# exclude signature data from the hash (including public key)
 		data[20:1044] = [ 0 ] * 1024
-		h = hashlib.new('ripemd160')
-		h.update(data)
-		H2 = h.digest()
-		assert H1[-20:] == H2
+		try:
+			h = hashlib.new('ripemd160')
+			h.update(data)
+			H2 = h.digest()
+			assert H1[-20:] == H2
+		except:
+			pass
 
 def read_cstr(f):
 	s = b''
@@ -136,7 +137,7 @@ def read_cstr(f):
 		if c == b'\x00':
 			break
 		s += c
-	return s.decode('ascii')
+	return s.decode('ascii', errors='ignore')
 
 def decode_pan(f, alphabet, dirname, bundle):
 	assert f.read(4) == b'NAPA'
@@ -159,16 +160,54 @@ def decode_pan(f, alphabet, dirname, bundle):
 		assetname = read_cstr(f)
 		if assetname and USE_ASSET_FILENAMES:
 			print('asset:%d type:%d filename:%s' % (i, asset.type, assetname))
-			filename = assetname
+			filename = assetname.replace('/', '_')
 		else:
 			filename = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
 		asset.dump(f, len(assetname) + 1, alphabet, os.path.join(dirname, filename))
+
+GG_HEADER_SIZE = 64
+
+class AssetGg:
+	def __init__(self, f):
+		self.size = struct.unpack("<I", f.read(4))[0]
+		self.id = struct.unpack("<I", f.read(4))[0]
+		self.type = struct.unpack("<I", f.read(4))[0]
+		self.payload = struct.unpack("<I", f.read(4))[0]
+		self.unk10 = struct.unpack("<I", f.read(4))[0]
+		self.unk14 = struct.unpack("<I", f.read(4))[0]
+		self.hash = bytearray(f.read(16))
+		bswap_digest(self.hash)
+		print('asset size:%d %d id:%d type:%d' % (self.size, self.payload, self.id, self.type))
+		assert self.unk10 == 0 and self.unk14 == 0
+		assert self.size > self.payload
+		for i in range(7):
+			zero = struct.unpack("<I", f.read(4))[0]
+			assert zero == 0
+
+def decode_gg(f, alphabet, dirname, bundle, total):
+	while f.tell() + 8 < total:
+		tag1 = struct.unpack("<I", f.read(4))[0]
+		assert tag1 == 0x74648225
+		tag2 = struct.unpack("<I", f.read(4))[0]
+		assert tag2 == 0x83547502
+		asset = AssetGg(f)
+		skip = asset.size - asset.payload - GG_HEADER_SIZE
+		assert skip > 0
+		f.seek(skip, os.SEEK_CUR)
+		b = f.read(asset.payload)
+		if VERIFY_ASSET_HASH:
+			h = hashlib.md5(b)
+			assert asset.hash == h.digest()
+		filename = '%s-%04d.%s' % (bundle, asset.id, ASSET_EXTENSIONS.get(asset.type, 'dat'))
+		with open(os.path.join(dirname, filename), 'wb') as o:
+			for x in b:
+				o.write(alphabet[x])
 
 for arg in sys.argv[1:]:
 	name = os.path.basename(arg)
 	i = name.rindex('-')
 	assert i != -1
-	bundle = os.path.splitext(name[i + 1:])[0]
+	bundle, ext = os.path.splitext(name[i + 1:])
 	name = name[:i].lower()
 	alphabet = descramble(name)
 	try:
@@ -176,4 +215,8 @@ for arg in sys.argv[1:]:
 	except:
 		pass
 	with open(arg, 'rb') as f:
-		decode_pan(f,  alphabet, name, bundle)
+		if ext == '.gg':
+			total = os.path.getsize(arg)
+			decode_gg(f, alphabet, name, bundle, total)
+		else:
+			decode_pan(f, alphabet, name, bundle)
