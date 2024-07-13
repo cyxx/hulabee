@@ -16,6 +16,7 @@ name="Hulabee.ESauce.Engine"
 This repository contains :
 
 * a version of [whisk.dll](https://www.dropbox.com/s/pey60eh8rnqftnm/whisk.dll?dl=0) to enable VM opcodes tracing
+* a rewrite of the engine using SDL2
 * some scripts to extract and convert assets from .pan files
 
 The `pan_decoder` has been tested with the following games :
