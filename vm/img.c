@@ -2,15 +2,17 @@
 #include "host_sdl2.h"
 #include "img.h"
 #include "util.h"
+#include <jpeglib.h>
+#include <jerror.h>
 
-struct decode_t {
+struct decode_img_t {
 	const uint8_t *data;
 	const uint8_t *palette;
 	int w, h;
 };
 
-static void decodeHelper(void *userdata, uint32_t *dst, int dst_pitch) {
-	struct decode_t *d = (struct decode_t *)userdata;
+static void decodeImgHelper(void *userdata, uint32_t *dst, int dst_pitch) {
+	struct decode_img_t *d = (struct decode_img_t *)userdata;
 	const uint8_t *palette = d->palette;
 	uint32_t pal[256];
 	for (int color = 0; color < 256; ++color) {
@@ -78,17 +80,63 @@ void LoadImg(const uint8_t *data, int size, Bitmap *bmp) {
 	switch (format) {
 	case BMP_FMT_PAL256:
 		if (bits && palette) {
-			struct decode_t d;
-			memset(&d, 0, sizeof(struct decode_t));
+			struct decode_img_t d;
+			memset(&d, 0, sizeof(struct decode_img_t));
 			d.data = bits;
 			d.palette = palette;
 			d.w = bmp->w;
 			d.h = bmp->h;
-			bmp->texture = CreateTexture(bmp->w, bmp->h, decodeHelper, &d);
+			bmp->texture = CreateTexture(bmp->w, bmp->h, SDL_PIXELFORMAT_ARGB8888, decodeImgHelper, &d);
 		}
 		break;
 	default:
 		error("Unhandled IMG format:%d", format);
 		break;
 	}
+}
+
+static void decodeJpgHelper(void *userdata, uint32_t *dst, int dst_pitch) {
+	struct jpeg_decompress_struct *cinfo = (struct jpeg_decompress_struct *)userdata;
+	while (cinfo->output_scanline < cinfo->output_height) {
+		jpeg_read_scanlines(cinfo, (JSAMPARRAY)&dst, 1);
+		dst += dst_pitch;
+	}
+}
+
+static void error_exit(j_common_ptr cinfo) {
+	char buffer[JMSG_LENGTH_MAX];
+	(*cinfo->err->format_message)(cinfo, buffer);
+	warning("libjpeg: %s", buffer);
+}
+
+static void output_message(j_common_ptr cinfo) {
+	char buffer[JMSG_LENGTH_MAX];
+	(*cinfo->err->format_message)(cinfo, buffer);
+	debug(DBG_IMG, "libjpeg: %s", buffer);
+}
+
+void LoadJpg(const uint8_t *data, int size, Bitmap *bmp) {
+	debug(DBG_IMG, "LoadJpg size:%d", size);
+	struct jpeg_decompress_struct cinfo;
+	memset(&cinfo, 0, sizeof(cinfo));
+
+	struct jpeg_error_mgr jerr;
+	memset(&jerr, 0, sizeof(jerr));
+	cinfo.err = jpeg_std_error(&jerr);
+	cinfo.err->error_exit = error_exit;
+	cinfo.err->output_message = output_message;
+
+	jpeg_create_decompress(&cinfo);
+	jpeg_mem_src(&cinfo, data, size);
+	jpeg_read_header(&cinfo, TRUE);
+	cinfo.out_color_space = JCS_EXT_RGBX;
+
+	jpeg_start_decompress(&cinfo);
+	bmp->w = cinfo.output_width;
+	bmp->h = cinfo.output_height;
+	debug(DBG_IMG, "JPEG w:%d h:%d depth:%d", bmp->w, bmp->h, cinfo.data_precision);
+	bmp->texture = CreateTexture(bmp->w, bmp->h, SDL_PIXELFORMAT_XBGR8888, decodeJpgHelper, &cinfo);
+	jpeg_finish_decompress(&cinfo);
+
+	jpeg_destroy_decompress(&cinfo);
 }

@@ -51,6 +51,9 @@ enum GameID {
 	GID_SONNY,
 	GID_MOOP,
 	GID_OLLO,
+	GID_MONSTERS,
+	GID_PIGLET,
+	GID_MAHJONG,
 };
 
 enum Language {

@@ -207,6 +207,6 @@ int GetCanBitmap(Animation *anim, int num, int anim_num, int *x_pos, int *y_pos)
 	d.size = size;
 	d.w = w;
 	d.h = h;
-	b->texture = CreateTexture(w, h, decodeHelper, &d);
+	b->texture = CreateTexture(w, h, SDL_PIXELFORMAT_ARGB8888, decodeHelper, &d);
 	return b->texture;
 }

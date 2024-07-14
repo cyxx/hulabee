@@ -7,6 +7,7 @@
 enum {
 	BMP_FMT_PAL256,
 	BMP_FMT_RGB555,
+	BMP_FMT_JPEG
 };
 
 typedef struct bitmap_t {
@@ -15,5 +16,6 @@ typedef struct bitmap_t {
 } Bitmap;
 
 void LoadImg(const uint8_t *data, int size, Bitmap *bmp);
+void LoadJpg(const uint8_t *data, int size, Bitmap *bmp);
 
 #endif /* IMG_H__ */

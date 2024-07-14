@@ -15,8 +15,9 @@ static void fn_sprite_create(VMContext *c) {
 static void fn_sprite_at(VMContext *c) {
 	int dy = VM_PopInt32(c);
 	int dx = VM_PopInt32(c);
-	int sprite = VM_PopInt32(c);
-	warning("Unimplemented Sprite:at sprite:%d x:%d y:%d", sprite, dx, dy);
+	const int sprite_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Sprite:at sprite:%d x:%d y:%d", sprite_num, dx, dy);
+	Host_SetSpritePos(sprite_num, dx, dy);
 }
 
 static void fn_sprite_image(VMContext *c) {
@@ -78,6 +79,24 @@ static void fn_sprite_ypos(VMContext *c) {
 	int y_pos;
 	Host_GetSpritePos(sprite_num, 0, &y_pos);
 	VM_Push(c, y_pos, VAR_TYPE_INT32);
+}
+
+static void fn_sprite_xsize(VMContext *c) {
+	int sprite_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Sprite:xSize sprite:%d", sprite_num);
+	int w;
+	//Host_GetSpriteSize(sprite_num, &w, 0);
+	w = 1; /* tofix */
+	VM_Push(c, w, VAR_TYPE_INT32);
+}
+
+static void fn_sprite_ysize(VMContext *c) {
+	int sprite_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Sprite:ySize sprite:%d", sprite_num);
+	int h;
+	//Host_GetSpriteSize(sprite_num, 0, &h);
+	h = 1; /* tofix */
+	VM_Push(c, h, VAR_TYPE_INT32);
 }
 
 static void fn_sprite_frame(VMContext *c) {
@@ -252,6 +271,8 @@ const VMSyscall _syscalls_sprite[] = {
 	{ 30009, fn_sprite_show },
 	{ 30010, fn_sprite_xpos },
 	{ 30011, fn_sprite_ypos },
+	{ 30012, fn_sprite_xsize },
+	{ 30013, fn_sprite_ysize },
 	{ 30015, fn_sprite_frame },
 	{ 30016, fn_sprite_rate },
 	{ 30017, fn_sprite_num_frames },

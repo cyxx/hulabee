@@ -7,7 +7,7 @@
 
 static void fn_window_create(VMContext *c) {
 	VM_PopInt32(c);
-	warning("Unimplemented Window:create()");
+	warning("Unimplemented window:create()");
 }
 
 static void fn_window_background(VMContext *c) {
@@ -21,8 +21,15 @@ static void fn_window_background(VMContext *c) {
 			LoadImg(pb.buffer, pb.size, &bmp);
 			Host_SetWindowBackgroundTexture(bmp.texture);
 		}
+	} else if (type == PAN_ASSET_TYPE_JPG) {
+		PanBuffer pb;
+		if (Pan_LoadAssetById(asset, &pb)) {
+			Bitmap bmp;
+			LoadJpg(pb.buffer, pb.size, &bmp);
+			Host_SetWindowBackgroundTexture(bmp.texture);
+		}
 	} else {
-		warning("Unsupported asset type:%d", type);
+		error("Unsupported asset type:%d for window:background", type);
 	}
 }
 
@@ -53,13 +60,25 @@ static void fn_window_y_size(VMContext *c) {
 static void fn_window_blank(VMContext *c) {
 	VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "window:blank");
-	warning("Unimplemented Window:blank()");
+	warning("Unimplemented window:blank");
 }
 
 static void fn_window_mode_mangle_rgb(VMContext *c) {
 	debug(DBG_SYSCALLS, "window:modeMangleRGB");
 	const uint32_t color = VM_PopInt32(c);
 	VM_Push(c, color & 0xFFF8F8F8, VAR_TYPE_INT32);
+}
+
+static void fn_window_render_vbl(VMContext *c) {
+	VM_PopInt32(c);
+	warning("Unimplemented window:renderOnVBlank");
+}
+
+static void fn_window_title(VMContext *c) {
+	const char *title = VM_PopString(c);
+	debug(DBG_SYSCALLS, "window:title");
+	assert(g_window);
+	SDL_SetWindowTitle(g_window, title);
 }
 
 const VMSyscall _syscalls_window[] = {
@@ -70,5 +89,7 @@ const VMSyscall _syscalls_window[] = {
 	{ 90009, fn_window_y_size },
 	{ 90011, fn_window_blank },
 	{ 90019, fn_window_mode_mangle_rgb },
+	{ 90022, fn_window_render_vbl },
+	{ 90026, fn_window_title },
 	{ -1, 0 }
 };

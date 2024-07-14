@@ -5,7 +5,7 @@
 
 static void fn_asset_load(VMContext *c) {
 	const char *s = "";
-	int num = VM_Pop(c, 0x10005);
+	int num = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
 	if (num) {
 		s = ArrayHandle_GetString(c, num);
 	}
@@ -22,7 +22,7 @@ static void fn_asset_exists(VMContext *c) {
 
 static void fn_asset_load_assets_def(VMContext *c) {
 	const char *s = "";
-	int num = VM_Pop(c, 0x10005);
+	int num = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
 	if (num) {
 		s = ArrayHandle_GetString(c, num);
 	}

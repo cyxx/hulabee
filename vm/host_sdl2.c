@@ -14,8 +14,8 @@ static int _texturesCount;
 
 static int _backgroundTexture = -1;
 
-int CreateTexture(int w, int h, void (*decode)(void *, uint32_t *, int), void *userdata) {
-	SDL_Texture *texture = SDL_CreateTexture(_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+int CreateTexture(int w, int h, int fmt, void (*decode)(void *, uint32_t *, int), void *userdata) {
+	SDL_Texture *texture = SDL_CreateTexture(_renderer, fmt, SDL_TEXTUREACCESS_STREAMING, w, h);
 	void *dst = 0;
 	int pitch = 0;
 	if (SDL_LockTexture(texture, 0, &dst, &pitch) == 0) {
@@ -99,8 +99,8 @@ void Host_SetSpriteAnim(int spr_num, int anim) {
 
 void Host_SetSpritePos(int spr_num, int x, int y) {
 	Sprite *spr = getSprite(spr_num);
-	spr->x = x;
-	spr->y = y;
+	spr->x += x;
+	spr->y += y;
 }
 
 void Host_SetSpriteTexture(int spr_num, int texture) {
@@ -141,6 +141,18 @@ void Host_SetSpriteImage(int spr_num, struct bitmap_t *b) {
 Animation *Host_GetSpriteAnimationData(int spr_num) {
 	Sprite *spr = getSprite(spr_num);
 	return &spr->animation_data;
+}
+
+void Host_GetSpriteSize(int spr_num, int *w, int *h) {
+	Sprite *spr = getSprite(spr_num);
+	int x1, y1, x2, y2;
+	GetAnimationFrameBounds(&spr->animation_data, 0, &x1, &y1, &x2, &y2);
+	if (w) {
+		*w = x2 - x1 + 1;
+	}
+	if (h) {
+		*h = y2 - y1 + 1;
+	}
 }
 
 void Host_SetWindowBackgroundTexture(int texture) {

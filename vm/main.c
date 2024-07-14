@@ -1,5 +1,6 @@
 
 #include <dirent.h>
+#include <getopt.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include "host_sdl2.h"
@@ -22,6 +23,9 @@ static const GameVersion _gameVersions[] = {
 	{ "sonnyrace",    19492068, GID_SONNY,                  LANGUAGE_EN_US },
 	{ "mooptreasure", 17634930, GID_MOOP,                   LANGUAGE_EN_US },
 	{ "ollofair",     21325685, GID_OLLO,                   LANGUAGE_EN_US },
+	{ "monsters1",      236410, GID_MONSTERS,               LANGUAGE_EN_US },
+	{ "piglet1",        236436, GID_PIGLET,                 LANGUAGE_EN_US },
+	{ "realmahjong",   4769563, GID_MAHJONG,                LANGUAGE_EN_US },
 	{ 0, 0, -1, -1 },
 };
 
@@ -94,36 +98,65 @@ static void ParseGameIni() {
 }
 
 int main(int argc, char *argv[]) {
+	g_debugMask = DBG_INFO | DBG_OPCODES | DBG_PAN | DBG_STACK | DBG_VM | DBG_SOB | DBG_INI | DBG_IMG | DBG_CAN | DBG_SYSCALLS;
+	char *dataPath = 0;
 	if (argc == 2) {
-		g_debugMask = DBG_INFO | DBG_OPCODES | DBG_PAN | DBG_STACK | DBG_VM | DBG_SOB | DBG_INI | DBG_IMG | DBG_CAN | DBG_SYSCALLS;
-		const char *dataPath = argv[1];
-		DIR *d = opendir(dataPath);
-		if (!d) {
-			warning("Unable to open '%s'", dataPath);
-		} else {
-			char gameName[GAMENAME_LEN + 1];
-			gameName[0] = 0;
-			const GameVersion *version = LoadGame(d, dataPath, gameName);
-			closedir(d);
-			if (!gameName[0]) {
-				warning("No SAUCE game found in '%s'", dataPath);
-			} else {
-				Pan_InitShuffleTable(gameName);
-				ParseGameIni();
-				VMContext *c = VM_NewContext();
-				if (version) {
-					debug(DBG_INFO, "Found game ID '%s'", version->name);
-					VM_SetGameID(c, version->gid);
-				}
-				VM_InitOpcodes();
-				VM_InitSyscalls(c);
-				Host_Init(version ? version->name : "", _windowW, _windowH);
-				VM_RunMainBoot(c, gameName, "");
-				Host_MainLoop(50, (UpdateProc)VM_RunThreads, c);
-				Host_Fini();
-				VM_FreeContext(c);
-				SDL_Quit();
+		// data path as the only command line argument
+		struct stat st;
+		if (stat(argv[1], &st) == 0 && S_ISDIR(st.st_mode)) {
+			dataPath = strdup(argv[1]);
+		}
+	} else {
+		while (1) {
+			static struct option options[] = {
+				{ "datapath",   required_argument, 0, 1 },
+				{ "debug",      required_argument, 0, 2 },
+				{ 0, 0, 0, 0 },
+			};
+			int index;
+			const int c = getopt_long(argc, argv, "", options, &index);
+			if (c == -1) {
+				break;
 			}
+			switch (c) {
+			case 1:
+				dataPath = strdup(optarg);
+				break;
+			case 2:
+				g_debugMask = DBG_INFO | atoi(optarg);
+				break;
+                        }
+		}
+	}
+	if (!dataPath) {
+		return -1;
+	}
+	DIR *d = opendir(dataPath);
+	if (!d) {
+		warning("Unable to open '%s'", dataPath);
+	} else {
+		char gameName[GAMENAME_LEN + 1];
+		gameName[0] = 0;
+		const GameVersion *version = LoadGame(d, dataPath, gameName);
+		closedir(d);
+		if (!gameName[0]) {
+			warning("No SAUCE game found in '%s'", dataPath);
+		} else {
+			Pan_InitShuffleTable(gameName);
+			ParseGameIni();
+			VMContext *c = VM_NewContext();
+			if (version) {
+				debug(DBG_INFO, "Found game ID '%s'", version->name);
+				VM_SetGameID(c, version->gid);
+			}
+			VM_InitOpcodes();
+			VM_InitSyscalls(c);
+			Host_Init(version ? version->name : "", _windowW, _windowH);
+			VM_RunMainBoot(c, gameName, "");
+			Host_MainLoop(50, (UpdateProc)VM_RunThreads, c);
+			Host_Fini();
+			VM_FreeContext(c);
+			SDL_Quit();
 		}
 	}
 	return 0;

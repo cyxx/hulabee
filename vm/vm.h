@@ -147,6 +147,7 @@ int VM_InvokeStaticMethod(VMContext *c, const char *class_name, const char *stat
 int VM_InvokeMethod(VMContext *c, SobData *sob, int member_index, int obj_handle, int start_call, int is_static, int is_parent);
 int VM_FindOrLoadClass(VMContext *, const char *name, int error_flag);
 int VM_LoadClass(VMContext *, const char *name, int error_flag);
+void VM_StartCallback(VMContext *, int handle, const char *name);
 void VM_RunThreads(VMContext *);
 void VM_GC();
 int VM_ConvertVar(int type, const VMVar *var);

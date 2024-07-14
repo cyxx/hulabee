@@ -95,7 +95,7 @@ static void op_push_local(VMContext *c) {
 }
 
 static void op_push_static(VMContext *c) {
-	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
+	uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_push_static num:%d", num);
 	if (num & 0xFFFF0000) {
@@ -409,6 +409,31 @@ static void op_gt_int(VMContext *c) {
 	const int res = (a.value > b.value);
 	debug(DBG_OPCODES, "op_gt_int %d > %d", a.value, b.value);
 	VM_Push(c, res, VAR_TYPE_INT32);
+}
+
+static void op_push_local_array(VMContext *c) {
+	VMVar st = VM_Pop2(c);
+	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
+	c->script->code_offset += 4;
+	debug(DBG_OPCODES, "op_push_local_array num:%d", num);
+	const VMVar *var = VM_GetLocalVar(c, num & 0xFFFF);
+	int type = var->type & 0xFFFF;
+	if (type & 0x100) {
+		type &= ~0x100;
+		type |= 0x10000;
+	}
+	VM_CheckVarType(type);
+	if (num & 0xFFFF0000) {
+		error("Unimplemented op_push_local_array num:0x%x", num);
+	} else {
+		if ((var->type & 0x10000) == 0) {
+			error("Using array reference on non-array variable");
+		} else {
+			VMArray *array = VM_GetArrayFromHandle(c, var->value);
+			assert(array->unk4C == 0);
+			VM_Push(c, Array_Get(array, st.value), type);
+		}
+	}
 }
 
 static void op_pop_static_array(VMContext *c) {
@@ -928,7 +953,7 @@ static void op_class_name(VMContext *c) {
 	if (!obj) {
 		error("Object handle %d was deleted", obj_handle);
 	}
-	const char *name = VM_GetClassFromHandle(c, obj->class_handle)->name;
+	const char *name = ClassHandle_GetName(c, obj->class_handle);
 	VMArray *array = Array_New(c);
 	Array_SetString(array, name);
 	VM_Push(c, array->handle, 0x10000 | VAR_TYPE_CHAR);
@@ -1054,6 +1079,14 @@ static void op_push_float(VMContext *c) {
 	VM_Push(c, val, VAR_TYPE_FLOAT);
 }
 
+static void op_start_callback(VMContext *c) {
+	debug(DBG_OPCODES, "op_start_callback");
+	const int array = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
+	const char *name = ArrayHandle_GetString(c, array);
+	VMVar st = VM_Pop2(c);
+	VM_StartCallback(c, st.value, name);
+}
+
 static void op_call_parent(VMContext *c) {
 	const int obj_handle = VM_Pop(c, VAR_TYPE_OBJECT);
 	if (obj_handle == 0) {
@@ -1116,6 +1149,11 @@ static void op_setthreadorder(VMContext *c) {
 	debug(DBG_OPCODES, "op_setthreadorder");
 	const int order = VM_PopInt32(c);
 	c->script->thread->order = order;
+}
+
+static void op_call_callback(VMContext *c) {
+	debug(DBG_OPCODES, "op_call_callback");
+	op_start_callback(c);
 }
 
 static void op_check_index(VMContext *c) {
@@ -1217,6 +1255,25 @@ static void op_classname_handle(VMContext *c) {
 	VM_Push(c, num, VAR_TYPE_INT32);
 }
 
+static void op_format_string(VMContext *c) {
+	debug(DBG_OPCODES, "op_format_string");
+	const int array_handle = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
+	const char *fmt = ArrayHandle_GetString(c, array_handle);
+	const int count = VM_Pop(c, VAR_TYPE_INT32);
+	assert(count <= 8);
+	VMVar args[8];
+	for (int i = 0; i < count; ++i) {
+		args[count - 1 - i] = VM_Pop2(c);
+	}
+	char buffer[1024];
+#define ARG(c, x) (args[x].type == (0x10000 | VAR_TYPE_CHAR) ? ArrayHandle_GetString(c, args[x].value) : args[x].value)
+	snprintf(buffer, sizeof(buffer), fmt, ARG(c, 0), ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
+#undef ARG
+	VMArray *array = Array_New(c);
+	Array_SetString(array, buffer);
+	VM_Push(c, array->handle, 0x10000 | VAR_TYPE_CHAR);
+}
+
 static void op_iftop_eq(VMContext *c) {
 	debug(DBG_OPCODES, "op_iftop_eq");
 	VMVar st = VM_Top2(c);
@@ -1284,7 +1341,7 @@ void VM_InitOpcodes() {
 	_opcodes[0x2f] = &op_geq_int;
 	_opcodes[0x30] = &op_lt_int;
 	_opcodes[0x31] = &op_gt_int;
-	// _opcodes[0x32] = &op_push_local_array;
+	_opcodes[0x32] = &op_push_local_array;
 	_opcodes[0x33] = &op_push_me1;
 	_opcodes[0x36] = &op_push_static_array;
 	// _opcodes[0x37] = &op_pop_local_array;
@@ -1340,12 +1397,14 @@ void VM_InitOpcodes() {
 	_opcodes[0x86] = &op_eq_float;
 	_opcodes[0x87] = &op_neq_float;
 	_opcodes[0x8c] = &op_push_float;
+	_opcodes[0x8e] = &op_start_callback;
 	_opcodes[0x8f] = &op_call_parent;
 	_opcodes[0x91] = &op_new_expr;
 	_opcodes[0x92] = &op_array_find;
 	_opcodes[0x93] = &op_breakmany;
 	_opcodes[0x94] = &op_breaktime;
 	_opcodes[0x96] = &op_setthreadorder;
+	_opcodes[0x97] = &op_call_callback;
 	_opcodes[0xab] = &op_check_index;
 	_opcodes[0xad] = &op_delete_array;
 	_opcodes[0xae] = &op_strcat;
@@ -1357,6 +1416,7 @@ void VM_InitOpcodes() {
 	_opcodes[0xb7] = &op_fast_fsyscall;
 	_opcodes[0xb8] = &op_push_raw_local_array;
 	_opcodes[0xb9] = &op_classname_handle;
+	_opcodes[0xba] = &op_format_string;
 	_opcodes[0xbc] = &op_iftop_eq;
 	_opcodes[0xbd] = &op_iftop_neq;
 }

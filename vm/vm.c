@@ -57,7 +57,6 @@ static int compareSyscallByNum(const void *a, const void *b) {
 	return num - syscall->num;
 }
 
-
 int VM_FindSyscallIndex(VMContext *c, int num) {
 	const VMSyscall *syscall = (const VMSyscall *)bsearch(&num, c->syscalls, c->syscalls_count, sizeof(VMSyscall), compareSyscallByNum);
 	if (syscall) {
@@ -75,8 +74,8 @@ void VM_RunMainBoot(VMContext *c, const char *name, const char *params) {
 	VM_LoadClass(c, name, 0);
 
 	VMArray *array = Array_New(c);
-	Array_Dim(array, 0x10005, 1, 0);
-	VM_Push(c, array->handle, 0x10105);
+	Array_Dim(array, 0x10000 | VAR_TYPE_CHAR, 1, 0);
+	VM_Push(c, array->handle, 0x10100 | VAR_TYPE_CHAR);
 
 	const int ret = VM_InvokeStaticMethod(c, name, "boot(C[[)V");
 	if (ret < 0) {
@@ -478,6 +477,17 @@ int VM_LoadClass(VMContext *context, const char *name, int error_flag) {
 		}
 	}
 	return BASE_HANDLE_CLASS + first_class_handle;
+}
+
+void VM_StartCallback(VMContext *c, int handle, const char *name) {
+	debug(DBG_VM, "VM_StartCallback '%s' handle:%d", name, handle);
+	if (handle >= BASE_HANDLE_OBJECT) {
+		warning("op_start_callback not implemented obj_handle:%d", handle);
+	} else if (handle >= BASE_HANDLE_CLASS) {
+		startStaticClassMethod(c, handle, name);
+	} else {
+		error("callback scope not a object or class");
+	}
 }
 
 void VM_RunThreads(VMContext *context) {

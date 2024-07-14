@@ -3,21 +3,9 @@
 #include "vm.h"
 
 static void fn_string_compare(VMContext *c) {
-	int ret = -1;
-	const char *s2 = ArrayHandle_GetString(c, VM_Pop(c, 0x10005));
-	const char *s1 = ArrayHandle_GetString(c, VM_Pop(c, 0x10005));
-	while (1) {
-		if (*s1 != *s2) {
-			ret = *s1 - *s2;
-			break;
-		}
-		if (!*s1) {
-			ret = 0;
-			break;
-		}
-		++s1;
-		++s2;
-	}
+	const int array2 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
+	const int array1 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
+	const int ret = ArrayHandle_CompareString(c, array1, array2);
 	VM_Push(c, ret, VAR_TYPE_INT32);
 }
 

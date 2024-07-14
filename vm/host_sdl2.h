@@ -5,7 +5,7 @@
 #include <SDL.h>
 #include "intern.h"
 
-int CreateTexture(int w, int h, void (*decode)(void *, uint32_t *, int), void *userdata);
+int CreateTexture(int w, int h, int fmt, void (*decode)(void *, uint32_t *, int), void *userdata);
 SDL_Texture *GetTexture(int num);
 
 extern SDL_Window *g_window;
@@ -15,6 +15,7 @@ int Host_CreateImage(struct bitmap_t *);
 
 int Host_CreateSprite();
 int Host_GetSpriteAnim(int spr);
+void Host_GetSpriteSize(int spr, int *w, int *h);
 void Host_SetSpriteAnim(int spr, int anim);
 void Host_SetSpritePos(int spr, int x, int y);
 void Host_SetSpriteTexture(int spr, int texture);

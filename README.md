@@ -1,5 +1,5 @@
 
-# Hulabee .pan decoder
+# Hulabee Entertainment Tools
 
 ![Hulabee Logo](hulabee_400.png)
 
@@ -13,20 +13,28 @@ ESauce Engine Error: %s
 name="Hulabee.ESauce.Engine"
 ```
 
-This repository contains :
+This repository contains:
 
-* a version of [whisk.dll](https://www.dropbox.com/s/pey60eh8rnqftnm/whisk.dll?dl=0) to enable VM opcodes tracing
 * a rewrite of the engine using SDL2
-* some scripts to extract and convert assets from .pan files
+* a version of [whisk.dll](https://www.dropbox.com/s/pey60eh8rnqftnm/whisk.dll?dl=0) to enable VM opcodes tracing
+* scripts to extract and convert assets from `.pan` and `.gg` files
 
-The `pan_decoder` has been tested with the following games :
+The `pan_decoder` has been tested with the following games:
 
 * [Sonny's Race for Chocolatey Taste](http://www.mobygames.com/game/sonnys-race-for-chocolatey-taste)
 * [Moop and Dreadly in the Treasure on Bing Bong Island](http://www.mobygames.com/game/moop-and-dreadly-in-the-treasure-on-bing-bong-island)
-* [Mike's Monstrous Adventure](http://www.mobygames.com/game/mikes-monstrous-adventure)
 * [Ollo in the Sunny Valley Fair](http://www.mobygames.com/game/ollo-in-the-sunny-valley-fair)
+* [Mike's Monstrous Adventure](http://www.mobygames.com/game/mikes-monstrous-adventure)
 * [Piglet's Big Game](http://www.mobygames.com/game/piglets-big-game)
 * [Mah Jong Jr.](http://www.mobygames.com/game/mah-jong-jr)
+* Flip Out Jr
+* Touchdown Madness
+* Casper's Spooky Swap
+* Little Mermaid Bubble Blast
+* Stitch's Blazing Lasers
+* The Lion King Grubalicious
+* Realms of Gold
+* [Word Spiral](https://www.mobygames.com/game/182441/word-spiral/)
 
 Usage
 ```

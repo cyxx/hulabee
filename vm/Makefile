@@ -11,7 +11,7 @@ OBJS = host_sdl2.o can.o img.o ini.o main.o pan.o random.o \
 DEPS = $(OBJS:.o=.d)
 
 vm: $(OBJS)
-	$(CC) -o $@ $^ $(SDL_LIBS)
+	$(CC) -o $@ $^ $(SDL_LIBS) -ljpeg
 
 clean:
 	rm -f *.o *.d
