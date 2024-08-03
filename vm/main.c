@@ -15,18 +15,25 @@ typedef struct {
 	const char *name;
 	uint32_t pan000000_size;
 	int gid;
-	int language;
 } GameVersion;
 
 static const GameVersion _gameVersions[] = {
-	{ "autorun",        787550, GID_AUTORUN_AOL_MOOP_SONNY, LANGUAGE_EN_US },
-	{ "sonnyrace",    19492068, GID_SONNY,                  LANGUAGE_EN_US },
-	{ "mooptreasure", 17634930, GID_MOOP,                   LANGUAGE_EN_US },
-	{ "ollofair",     21325685, GID_OLLO,                   LANGUAGE_EN_US },
-	{ "monsters1",      236410, GID_MONSTERS,               LANGUAGE_EN_US },
-	{ "piglet1",        236436, GID_PIGLET,                 LANGUAGE_EN_US },
-	{ "realmahjong",   4769563, GID_MAHJONG,                LANGUAGE_EN_US },
-	{ 0, 0, -1, -1 },
+	{ "autorun",         787550, GID_AUTORUN_AOL_MOOP_SONNY },
+	{ "sonnyrace",     19492068, GID_SONNY,                 },
+	{ "mooptreasure",         0, GID_MOOP,                  },
+	{ "ollofair",             0, GID_OLLO,                  },
+	{ "monsters1",            0, GID_MONSTERS,              },
+	{ "piglet1",              0, GID_PIGLET,                },
+	{ "realmahjong",    4769563, GID_MAHJONG,               },
+	{ "flipoutjr",      4682806, GID_FLIPOUT                },
+	{ "casper2",       10725524, GID_CASPER                 },
+	{ "bubbleblast",   21444457, GID_BUBBLEBLAST            },
+	{ "stitch2",        9583009, GID_STITCH                 },
+	{ "grubalicious2", 13907010, GID_GRUBALICIOUS           },
+	{ "fourhouses",    16663362, GID_FOURHOUSES             },
+	{ "wordspiral",    17873745, GID_WORDSPIRAL,            },
+	{ "realmsofgold",  17540639, GID_REALMSGOLD,            },
+	{ 0, 0, -1 },
 };
 
 static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName) {
@@ -40,11 +47,14 @@ static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName)
 		if (!sep) {
 			continue;
 		}
-		int num;
-		if (sscanf(sep + 1, "%06d.pan", &num) != 1) {
+		int num, gg = 0;
+		if (strcmp(sep + 1, "000000.gg") == 0) {
+			gg = 1;
+			num = 0;
+		} else if (sscanf(sep + 1, "%06d.pan", &num) != 1) {
 			continue;
 		}
-		debug(DBG_PAN, "Found pan id:%06d", num);
+		debug(DBG_PAN, "Found pan id:%06d gg:%d", num, gg);
 		char buffer[GAMENAME_LEN];
 		const size_t len = sep - de->d_name;
 		assert(len < sizeof(buffer));
@@ -56,11 +66,19 @@ static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName)
 		} else if (strcmp(gameName, buffer) != 0) {
 			continue;
 		}
-		Pan_Open(dataPath, gameName, num);
+		if (gg) {
+			Gg_Open(dataPath, gameName);
+		} else {
+			Pan_Open(dataPath, gameName, num);
+		}
 		if (num == 0) {
 			for (int i = 0; _gameVersions[i].name; ++i) {
 				if (strcasecmp(gameName, _gameVersions[i].name) != 0) {
 					continue;
+				}
+				if (_gameVersions[i].pan000000_size == 0) {
+					gameVersion = &_gameVersions[i];
+					break;
 				}
 				char path[MAXPATHLEN];
 				snprintf(path, sizeof(path), "%s/%s", dataPath, de->d_name);
@@ -77,6 +95,7 @@ static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName)
 
 static int _windowW = 640;
 static int _windowH = 480;
+static char *_bootClass = 0;
 
 static void HandleGameIni(const char *section, const char *key, const char *value) {
 	// fprintf(stdout, "INI section:%s %s=%s\n", section, key, value);
@@ -85,6 +104,10 @@ static void HandleGameIni(const char *section, const char *key, const char *valu
 			_windowW = atoi(value);
 		} else if (strcmp(key, "DisplayHeight") == 0) {
 			_windowH = atoi(value);
+		}
+	} else if (strcmp(section, "General") == 0) {
+		if (strcmp(key, "BootClass") == 0) {
+			_bootClass = strdup(value);
 		}
 	}
 }
@@ -152,7 +175,7 @@ int main(int argc, char *argv[]) {
 			VM_InitOpcodes();
 			VM_InitSyscalls(c);
 			Host_Init(version ? version->name : "", _windowW, _windowH);
-			VM_RunMainBoot(c, gameName, "");
+			VM_RunMainBoot(c, _bootClass ? _bootClass : gameName, "");
 			Host_MainLoop(50, (UpdateProc)VM_RunThreads, c);
 			Host_Fini();
 			VM_FreeContext(c);

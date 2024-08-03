@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <assert.h>
 
 static inline uint16_t READ_LE_UINT16(const void *ptr) {
@@ -54,6 +55,14 @@ enum GameID {
 	GID_MONSTERS,
 	GID_PIGLET,
 	GID_MAHJONG,
+	GID_FLIPOUT,
+	GID_CASPER,
+	GID_BUBBLEBLAST,
+	GID_STITCH,
+	GID_GRUBALICIOUS,
+	GID_FOURHOUSES,
+	GID_WORDSPIRAL,
+	GID_REALMSGOLD,
 };
 
 enum Language {

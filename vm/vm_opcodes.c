@@ -49,14 +49,16 @@ static void op_push_me(VMContext *c) {
 	if (!obj) {
 		error("push_me called from static method");
 	}
-	const int num = READ_LE_UINT32(c->code); c->code += 4;
+	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_push_me num:%d", num);
-
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_push_me num:0x%x", num);
-	} else {
-		VMVar *var = VM_GetObjectMemberVar(c, obj, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	VMVar *var = VM_GetObjectMemberVar(c, obj, num & 0xFFFF);
+	for (int i = 0; i < count; ++i, ++var) {
 		VM_Push(c, var->value, var->type);
 	}
 }
@@ -73,11 +75,13 @@ static void op_push_member(VMContext *c) {
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_push_member num:%d", num);
-
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_push_member num:0x%x", num);
-	} else {
-		VMVar *var = VM_GetObjectMemberVar(c, obj, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	VMVar *var = VM_GetObjectMemberVar(c, obj, num & 0xFFFF);
+	for (int i = 0; i < count; ++i, ++var) {
 		VM_Push(c, var->value, var->type);
 	}
 }
@@ -86,22 +90,28 @@ static void op_push_local(VMContext *c) {
 	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_push_local num:%d", num);
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_push_local num:0x%x", num);
-	} else {
-		const VMVar *var = VM_GetLocalVar(c, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	const VMVar *var = VM_GetLocalVar(c, num & 0xFFFF);
+	for (int i = 0; i < count; ++i, ++var) {
 		VM_Push(c, var->value, var->type);
 	}
 }
 
 static void op_push_static(VMContext *c) {
-	uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
+	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_push_static num:%d", num);
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_push_static num:0x%x", num);
-	} else {
-		const SobVar *var = VM_GetClassStaticVar(c, c->script->sob_data, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	const SobVar *var = VM_GetClassStaticVar(c, c->script->sob_data, num & 0xFFFF);
+	for (int i = 0; i < count; ++i, ++var) {
 		VM_Push(c, var->value, var->type);
 	}
 }
@@ -120,10 +130,14 @@ static void op_pop_local(VMContext *c) {
 	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_pop_local num:%d", num);
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_pop_local num:%d", num);
-	} else {
-		VMVar *var = VM_GetLocalVar(c, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	VMVar *var = VM_GetLocalVar(c, num);
+	var += count - 1;
+	for (int i = 0; i < count; ++i, --var) {
 		VM_CheckVarType(var->type);
 		VMVar st = VM_Pop2(c);
 		VM_CheckVarType(st.type);
@@ -139,11 +153,14 @@ static void op_pop_me(VMContext *c) {
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_pop_me num:%d", num);
-
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_pop_me num:0x%x", num);
-	} else {
-		VMVar *var = VM_GetObjectMemberVar(c, obj, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	VMVar *var = VM_GetObjectMemberVar(c, obj, num & 0xFFFF);
+	var += count - 1;
+	for (int i = 0; i < count; ++i, --var) {
 		VMVar st2 = VM_Pop2(c);
 		VM_CheckVarType(st2.type);
 		VM_CheckVarType(var->type);
@@ -163,10 +180,14 @@ static void op_pop_member(VMContext *c) {
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_pop_member num:%d", num);
-
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_pop_member num:0x%x", num);
-	} else {
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	VMVar *var = VM_GetObjectMemberVar(c, obj, num & 0xFFFF);
+	var += count - 1;
+	for (int i = 0; i < count; ++i, --var) {
 		VMVar *var = VM_GetObjectMemberVar(c, obj, num);
 		VMVar st2 = VM_Pop2(c);
 		VM_CheckVarType(st2.type);
@@ -179,10 +200,14 @@ static void op_pop_static(VMContext *c) {
 	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_pop_static num:%d", num);
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_pop_static num:0x%x", num);
-	} else {
-		SobVar *var = VM_GetClassStaticVar(c, c->script->sob_data, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	SobVar *var = VM_GetClassStaticVar(c, c->script->sob_data, num & 0xFFFF);
+	var += count - 1;
+	for (int i = 0; i < count; ++i, --var) {
 		VMVar st = VM_Pop2(c);
 		VM_CheckVarType(var->type);
 		VM_CheckVarType(st.type);
@@ -273,7 +298,7 @@ static void op_div_int(VMContext *c) {
 static void op_neg_int(VMContext *c) {
 	debug(DBG_OPCODES, "op_neg_int");
 	VMVar st = VM_Pop2(c);
-	if (st.type > 7) {
+	if (st.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(st.type));
 	}
 	VM_Push(c, -st.value, st.type);
@@ -457,11 +482,6 @@ static void op_pop_static_array(VMContext *c) {
 				type &= ~0x100;
 				type |= 0x10000;
 			}
-			if ((c->gameID == GID_MOOP || c->gameID == GID_OLLO) && array->unk4C) {
-				/* hack */
-				return;
-			}
-			assert(array->unk4C == 0);
 			Array_Set(array, st.value, VM_ConvertVar(type, &st2));
 		}
 	}
@@ -498,7 +518,6 @@ static void op_pop_me_array(VMContext *c) {
 				type &= ~0x100;
 				type |= 0x10000;
 			}
-			assert(array->unk4C == 0);
 			Array_Set(array, st.value, VM_ConvertVar(type, &st2));
 		}
 	}
@@ -528,7 +547,6 @@ static void op_push_me1(VMContext *c) {
 			error("Using array reference on non-array variable");
 		} else {
 			VMArray *array = VM_GetArrayFromHandle(c, var->value);
-			assert(array->unk4C == 0);
 			const int value = Array_Get(array, x);
 			VM_Push(c, value, type);
 		}
@@ -537,6 +555,7 @@ static void op_push_me1(VMContext *c) {
 
 static void op_push_static_array(VMContext *c) {
 	int x = VM_PopInt32(c);
+
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_push_static_array num:%d", num);
@@ -555,16 +574,43 @@ static void op_push_static_array(VMContext *c) {
 			error("Using array reference on non-array variable");
 		} else {
 			VMArray *array = VM_GetArrayFromHandle(c, var->value);
-			if ((c->gameID == GID_MOOP || c->gameID == GID_OLLO) && array->unk4C) {
-				/* hack */
-				VM_Push(c, 0, type);
-				return;
-			}
-			assert(array->unk4C == 0);
 			const int value = Array_Get(array, x);
 			VM_Push(c, value, type);
 		}
 	}
+}
+
+static void op_pop_local_array(VMContext *c) {
+	VMVar st1 = VM_Pop2(c);
+
+	const int num = READ_LE_UINT32(c->code); c->code += 4;
+	c->script->code_offset += 4;
+	debug(DBG_OPCODES, "op_pop_local_array num:%d", num);
+
+	if (num & 0xFFFF0000) {
+		error("Unimplemented op_pop_local_array num:0x%x", num);
+	} else {
+		const VMVar *var = VM_GetLocalVar(c, num);
+		VMVar st2 = VM_Pop2(c);
+		VM_CheckVarType(var->type);
+		VM_CheckVarType(st2.type);
+		if ((var->type & 0x10000) == 0) {
+			error("Using array reference on non-array variable");
+		} else {
+			VMArray *array = VM_GetArrayFromHandle(c, var->value);
+			int type = var->type & 0xFFFF;
+			if (type & 0x100) {
+				type &= ~0x100;
+				type |= 0x10000;
+			}
+			Array_Set(array, st1.value, VM_ConvertVar(type, &st2));
+		}
+	}
+}
+
+static void op_push_static_me_array(VMContext *c) {
+	debug(DBG_OPCODES, "op_push_static_me_array");
+	op_push_static_array(c);
 }
 
 static void op_push_string(VMContext *c) {
@@ -682,10 +728,10 @@ static void op_rand_int(VMContext *c) {
 	debug(DBG_OPCODES, "op_rand_int");
 	VMVar v0 = VM_Pop2(c);
 	VMVar v1 = VM_Pop2(c);
-	if (v0.type > 7) {
+	if (v0.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(v0.type));
 	}
-	if (v1.type > 7) {
+	if (v1.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(v1.type));
 	}
 	int r;
@@ -721,7 +767,7 @@ static void op_copy1(VMContext *c) {
 		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
 	}
 	VMArray *array = VM_GetArrayFromHandle(c, st.value);
-	const int handle = Array_Copy1(array);
+	const int handle = Array_Copy1(c, array);
 	VM_Push(c, handle, 0x10000 | array->type);
 }
 
@@ -734,7 +780,7 @@ static void op_range1(VMContext *c) {
 	VMArray *array = VM_GetArrayFromHandle(c, st.value);
 	VMVar end = VM_Pop2(c);
 	VMVar start = VM_Pop2(c);
-	const int handle = Array_Range1(array, start.value, end.value);
+	const int handle = Array_Range1(c, array, start.value, end.value);
 	VM_Push(c, handle, 0x10000 | array->type);
 }
 
@@ -790,13 +836,21 @@ static void op_row_size(VMContext *c) {
 }
 
 static void op_poppush_array(VMContext *c) {
+	int type = 7;
+	if (c->gameID >= GID_MONSTERS) {
+		type = READ_LE_UINT32(c->code); c->code += 4;
+		c->script->code_offset += 4;
+	}
 	VMVar st = VM_Pop2(c);
 	debug(DBG_OPCODES, "op_poppush_array %d", st.value);
+	if (c->gameID >= GID_MONSTERS && st.value != 0 && (type & 0xFF) != 10) {
+		type = VM_Top2(c).type;
+	}
 	VMArray *array = Array_New(c);
-	Array_Dim(array, 7, 1, st.value);
+	Array_Dim(array, type, 1, st.value);
 	for (int i = st.value; i >= 1; --i) {
 		VMVar st2 = VM_Pop2(c);
-		assert(array->unk44 == 0 && array->unk4C == 0);
+		assert(array->struct_size == 0 && array->unk4C == 0);
 		Array_Set(array, i, st2.value);
 	}
 	VM_Push(c, array->handle, 0x10000 | 12);
@@ -805,11 +859,11 @@ static void op_poppush_array(VMContext *c) {
 static void op_band(VMContext *c) {
 	debug(DBG_OPCODES, "op_band");
 	VMVar b = VM_Pop2(c);
-	if (b.type > 7) {
+	if (b.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(b.type));
 	}
 	VMVar a = VM_Pop2(c);
-	if (a.type > 7) {
+	if (a.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(a.type));
 	}
 	VM_Push(c, a.value & b.value, a.type);
@@ -818,11 +872,11 @@ static void op_band(VMContext *c) {
 static void op_bor(VMContext *c) {
 	debug(DBG_OPCODES, "op_bor");
 	VMVar b = VM_Pop2(c);
-	if (b.type > 7) {
+	if (b.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(b.type));
 	}
 	VMVar a = VM_Pop2(c);
-	if (a.type > 7) {
+	if (a.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(a.type));
 	}
 	VM_Push(c, a.value | b.value, a.type);
@@ -864,11 +918,11 @@ static void op_threadid(VMContext *c) {
 static void op_min_int(VMContext *c) {
 	debug(DBG_OPCODES, "op_min_int");
 	VMVar b = VM_Pop2(c);
-	if (b.type > 7) {
+	if (b.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(b.type));
 	}
 	VMVar a = VM_Pop2(c);
-	if (a.type > 7) {
+	if (a.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(a.type));
 	}
 	VM_Push(c, a.value < b.value ? a.value : b.value, a.type);
@@ -877,11 +931,11 @@ static void op_min_int(VMContext *c) {
 static void op_max_int(VMContext *c) {
 	debug(DBG_OPCODES, "op_max_int");
 	VMVar b = VM_Pop2(c);
-	if (b.type > 7) {
+	if (b.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(b.type));
 	}
 	VMVar a = VM_Pop2(c);
-	if (a.type > 7) {
+	if (a.type > VAR_TYPE_INT32) {
 		error("Can't perform computations on %s variables", VM_GetVarTypeName(a.type));
 	}
 	VM_Push(c, a.value > b.value ? a.value : b.value, a.type);
@@ -897,11 +951,11 @@ static void op_dup(VMContext *c) {
 static void op_streq(VMContext *c) {
 	VMVar st2 = VM_Pop2(c);
 	VMVar st1 = VM_Pop2(c);
-	if (st1.type != 0x10005 && st1.value != 0 && (st1.type & 0xFF) != 12 && (st1.type & 0xFF) != 10) {
-		error("Can't convert from %s to %s", VM_GetVarTypeName(st1.type), VM_GetVarTypeName(0x10005));
+	if (st1.type != (0x10000 | VAR_TYPE_CHAR) && st1.value != 0 && (st1.type & 0xFF) != 12 && (st1.type & 0xFF) != 10) {
+		error("Can't convert from %s to %s", VM_GetVarTypeName(st1.type), VM_GetVarTypeName(0x10000 | VAR_TYPE_CHAR));
 	}
-	if (st2.type != 0x10005 && st2.value != 0 && (st2.type & 0xFF) != 12 && (st2.type & 0xFF) != 10) {
-		error("Can't convert from %s to %s", VM_GetVarTypeName(st2.type), VM_GetVarTypeName(0x10005));
+	if (st2.type != (0x10000 | VAR_TYPE_CHAR) && st2.value != 0 && (st2.type & 0xFF) != 12 && (st2.type & 0xFF) != 10) {
+		error("Can't convert from %s to %s", VM_GetVarTypeName(st2.type), VM_GetVarTypeName(0x10000 | VAR_TYPE_CHAR));
 	}
 	const int res = ArrayHandle_CompareString(c, st1.value, st2.value);
 	VM_Push(c, res, VAR_TYPE_INT32);
@@ -914,7 +968,7 @@ static void op_insert_upper(VMContext *c) {
 		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
 	}
 	VMArray *array = VM_GetArrayFromHandle(c, st.value);
-	assert(array->unk44 == 0);
+	assert(array->struct_size == 0);
 	VMVar st2 = VM_Pop2(c);
 	Array_InsertUpper(array, st2.value);
 }
@@ -1093,8 +1147,8 @@ static void op_call_parent(VMContext *c) {
 		error("Calling method from NULL object");
 	}
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
-	debug(DBG_OPCODES, "op_call_parent num:%d", num);
 	c->script->code_offset += 4;
+	debug(DBG_OPCODES, "op_call_parent num:%d", num);
 	VM_InvokeMethod(c, c->script->sob_data, num, obj_handle, 0, 0, 1);
 }
 
@@ -1156,8 +1210,20 @@ static void op_call_callback(VMContext *c) {
 	op_start_callback(c);
 }
 
+static void op_delete_index(VMContext *c) {
+	debug(DBG_OPCODES, "op_delete_index");
+	VMVar st = VM_Pop2(c);
+	if ((st.type & 0x10000) == 0) {
+		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
+	}
+	VMArray *array = VM_GetArrayFromHandle(c, st.value);
+	VMVar st2 = VM_Pop2(c);
+	const int ret = Array_DeleteIndex(array, st2.value);
+	VM_Push(c, ret, VAR_TYPE_INT32);
+}
+
 static void op_check_index(VMContext *c) {
-	debug(DBG_OPCODES, "op_iftop_eq");
+	debug(DBG_OPCODES, "op_check_index");
 	VMVar st = VM_Pop2(c);
 	if ((st.type & 0x10000) == 0) {
 		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
@@ -1198,6 +1264,13 @@ static void op_gotodefine(VMContext *c) {
 	}
 }
 
+static void op_gotothread(VMContext *c) {
+	debug(DBG_OPCODES, "op_gotothread");
+	VMVar st2 = VM_Pop2(c);
+	VMVar st1 = VM_Pop2(c);
+	ThreadHandle_GoTo(c, st1.value, st2.value);
+}
+
 static void op_dim_int(VMContext *c) {
 	debug(DBG_OPCODES, "op_dim_int");
 	VMVar st = VM_Pop2(c);
@@ -1206,12 +1279,19 @@ static void op_dim_int(VMContext *c) {
 	} else {
 		VMArray *array = Array_New(c);
 		Array_Dim(array, st.type & 0xFFFF, 1, 0);
-		VM_Push(c, array->handle, st.type);
-
-		warning("Unimplemented op_dim_int handle:%d type:%d", array->handle, (st.type & 0xFFFF));
 		array->unk4C = 1;
 		VM_Push(c, array->handle, st.type);
 	}
+}
+
+static void op_array_rand(VMContext *c) {
+	VMVar st = VM_Pop2(c);
+	if ((st.type & 0x10000) == 0) {
+		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
+	}
+	VMArray *array = VM_GetArrayFromHandle(c, st.value);
+	int value = Array_Rand(array);
+	VM_Push(c, value, array->type);
 }
 
 static void op_fast_syscall(VMContext *c) {
@@ -1241,7 +1321,7 @@ static void op_push_raw_local_array(VMContext *c) {
 		type |= 0x10000;
 	}
 	VMArray *array = VM_GetArrayFromHandle(c, var->value);
-	if (array->unk10 == 2) {
+	if (array->dimension == 2) {
 		error("Accessing [n,n] as [n]");
 	}
 	const int value = Array_Get(array, st.value);
@@ -1258,17 +1338,22 @@ static void op_classname_handle(VMContext *c) {
 static void op_format_string(VMContext *c) {
 	debug(DBG_OPCODES, "op_format_string");
 	const int array_handle = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *fmt = ArrayHandle_GetString(c, array_handle);
+	/* const char *fmt = */ ArrayHandle_GetString(c, array_handle);
 	const int count = VM_Pop(c, VAR_TYPE_INT32);
 	assert(count <= 8);
+/*
 	VMVar args[8];
 	for (int i = 0; i < count; ++i) {
 		args[count - 1 - i] = VM_Pop2(c);
 	}
+*/
 	char buffer[1024];
+/*
 #define ARG(c, x) (args[x].type == (0x10000 | VAR_TYPE_CHAR) ? ArrayHandle_GetString(c, args[x].value) : args[x].value)
 	snprintf(buffer, sizeof(buffer), fmt, ARG(c, 0), ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
 #undef ARG
+*/
+	buffer[0] = 0;
 	VMArray *array = Array_New(c);
 	Array_SetString(array, buffer);
 	VM_Push(c, array->handle, 0x10000 | VAR_TYPE_CHAR);
@@ -1343,8 +1428,9 @@ void VM_InitOpcodes() {
 	_opcodes[0x31] = &op_gt_int;
 	_opcodes[0x32] = &op_push_local_array;
 	_opcodes[0x33] = &op_push_me1;
+	_opcodes[0x35] = &op_push_static_me_array;
 	_opcodes[0x36] = &op_push_static_array;
-	// _opcodes[0x37] = &op_pop_local_array;
+	_opcodes[0x37] = &op_pop_local_array;
 	_opcodes[0x38] = &op_pop_me_array;
 	_opcodes[0x3a] = &op_pop_static_me_array;
 	_opcodes[0x3b] = &op_pop_static_array;
@@ -1405,13 +1491,15 @@ void VM_InitOpcodes() {
 	_opcodes[0x94] = &op_breaktime;
 	_opcodes[0x96] = &op_setthreadorder;
 	_opcodes[0x97] = &op_call_callback;
+	_opcodes[0xa5] = &op_delete_index;
 	_opcodes[0xab] = &op_check_index;
 	_opcodes[0xad] = &op_delete_array;
 	_opcodes[0xae] = &op_strcat;
 	_opcodes[0xaf] = &op_assert;
 	_opcodes[0xb0] = &op_gotodefine;
-	// _opcodes[0xb1] = &op_gotothread;
+	_opcodes[0xb1] = &op_gotothread;
 	_opcodes[0xb2] = &op_dim_int;
+	_opcodes[0xb5] = &op_array_rand;
 	_opcodes[0xb6] = &op_fast_syscall;
 	_opcodes[0xb7] = &op_fast_fsyscall;
 	_opcodes[0xb8] = &op_push_raw_local_array;

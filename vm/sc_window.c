@@ -87,9 +87,10 @@ const VMSyscall _syscalls_window[] = {
 	{ 90004, fn_window_size },
 	{ 90008, fn_window_x_size },
 	{ 90009, fn_window_y_size },
+	{ 90010, fn_window_title }, /* wordspiral */
 	{ 90011, fn_window_blank },
 	{ 90019, fn_window_mode_mangle_rgb },
 	{ 90022, fn_window_render_vbl },
-	{ 90026, fn_window_title },
+	{ 90026, fn_window_title }, /* piglet1 */
 	{ -1, 0 }
 };

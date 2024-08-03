@@ -56,12 +56,17 @@ typedef struct {
 	SobData *sob_data;
 } VMClass;
 
+struct vmarray_key_value_t {
+	int key;
+	int value;
+};
+
 typedef struct {
 	uint32_t handle;
 	int type;
 	int elem_size;
 	uint8_t *data;
-	int unk10;
+	int dimension;
 	int col_lower;
 	int col_upper;
 	int row_lower;
@@ -69,8 +74,11 @@ typedef struct {
 	uint32_t offset;
 	int unk28;
 	int unk34;
-	int unk44;
+	int unk40;
+	int struct_size;
 	int unk4C;
+	struct vmarray_key_value_t *kv_data;
+	int kv_size;
 } VMArray;
 
 typedef struct {
@@ -149,7 +157,7 @@ int VM_FindOrLoadClass(VMContext *, const char *name, int error_flag);
 int VM_LoadClass(VMContext *, const char *name, int error_flag);
 void VM_StartCallback(VMContext *, int handle, const char *name);
 void VM_RunThreads(VMContext *);
-void VM_GC();
+void VM_GC(int);
 int VM_ConvertVar(int type, const VMVar *var);
 void VM_CheckVarType(int type);
 SobVar *VM_GetClassStaticVar(VMContext *c, SobData *sob, int num);
@@ -164,6 +172,7 @@ void VM_AddThread(VMContext *c, VMThread *thread);
 void VM_RemoveThread(VMContext *c, VMThread *thread);
 void VM_StopThread(VMContext *c, int num, int handle);
 int VM_CountThreads(VMContext *c, int num);
+void VM_DeleteObject(VMContext *c, VMObject *obj, int call_delete);
 
 // vm_opcodes
 void VM_InitOpcodes();
@@ -189,15 +198,19 @@ void Array_SetString(VMArray *array, const char *s);
 int Array_Get(VMArray *array, int offset);
 void Array_Set(VMArray *array, int offset, int value);
 int Array_Find(VMArray *array, int value);
+int Array_DeleteIndex(VMArray *array, int offset);
 int Array_CheckIndex(VMArray *array, int offset);
 void Array_InsertUpper(VMArray *array, int value);
 int Array_GetStringLength(VMArray *array);
-int Array_Copy1(VMArray *array);
-int Array_Range1(VMArray *array, int start, int end);
+int Array_Copy1(VMContext *c, VMArray *array);
+int Array_Range1(VMContext *c, VMArray *array, int start, int end);
+int Array_Rand(VMArray *array);
 const char *ArrayHandle_GetString(VMContext *c, int handle);
 void ArrayHandle_ConcatString(VMContext *c, int array1, int array2);
 int ArrayHandle_CompareString(VMContext *c, int array1, int array2);
 int ArrayHandle_AddString(VMContext *c, int array1, int array2);
+void ArrayHandle_LowerString(VMContext *c, int array);
+void ArrayHandle_UpperString(VMContext *c, int array);
 void ArrayHandle_Delete(VMContext *c, int handle);
 
 // vm_thread
@@ -206,6 +219,7 @@ VMThread *Thread_New(VMContext *c);
 void Thread_Start(VMThread *);
 void Thread_Stop(VMThread *);
 void Thread_Define(VMThread *, int num, int offset);
+void ThreadHandle_GoTo(VMContext *c, int handle, int num);
 int ThreadHandle_FindId(VMContext *c, int handle);
 
 // vm_object
@@ -213,7 +227,7 @@ VMObject *VM_GetObjectFromHandle(VMContext *c, int num);
 VMObject *Object_New(VMContext *c);
 VMVar *Object_GetMemberVar(VMObject *obj, int num);
 int ObjectHandle_Create(VMContext *c, int class_handle);
-void ObjectHandle_Delete(VMContext *c, int obj_handle, int flag);
+void ObjectHandle_Delete(VMContext *c, int obj_handle, int call_delete);
 
 extern const VMSyscall _syscalls_asset[];
 extern const VMSyscall _syscalls_console[];
@@ -221,6 +235,7 @@ extern const VMSyscall _syscalls_debug[];
 extern const VMSyscall _syscalls_file[];
 extern const VMSyscall _syscalls_image[];
 extern const VMSyscall _syscalls_input[];
+extern const VMSyscall _syscalls_math[];
 extern const VMSyscall _syscalls_sound[];
 extern const VMSyscall _syscalls_sprite[];
 extern const VMSyscall _syscalls_string[];

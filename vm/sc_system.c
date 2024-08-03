@@ -13,19 +13,36 @@ static void fn_system_timer(VMContext *c) {
 }
 
 static void fn_system_gc(VMContext *c) {
-	VM_PopInt32(c);
-	warning("Unimplemented fn_system_gc");
+	const int counter = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "System:gc counter:%d", counter);
+	if (counter == -1) {
+		VM_GC(1);
+	} else {
+		c->gc_counter = counter;
+	}
 }
 
 static void fn_system_query(VMContext *c) {
 	int what = VM_PopInt32(c);
-	warning("Unimplemented fn_system_query");
-	VM_Push(c, 0, VAR_TYPE_INT32);
+	switch (what) {
+	case 1: /* environment */
+		VM_Push(c, 1, VAR_TYPE_INT32);
+		break;
+	case 2: /* OS */
+		VM_Push(c, 0, VAR_TYPE_INT32); /* 2 for Windows */
+		break;
+	case 3: /* Physical RAM */
+	case 4: /* Processor */
+	case 5: /* Processor Speed */
+	default:
+		warning("Unhandled system:query %d", what);
+		VM_Push(c, 0, VAR_TYPE_INT32);
+	}
 }
 
 static void fn_system_error(VMContext *c) {
 	const char *msg = VM_PopString(c);
-	warning("Unimplemented fn_system_error '%s'", msg);
+	fprintf(stderr, "ERROR: %s\n", msg);
 }
 
 static void fn_system_warning(VMContext *c) {
@@ -34,9 +51,10 @@ static void fn_system_warning(VMContext *c) {
 }
 
 static void fn_system_message_box2(VMContext *c) {
-	int flags = VM_PopInt32(c);
+	const int flags = VM_PopInt32(c);
 	const char *message = VM_PopString(c);
 	const char *title = VM_PopString(c);
+	debug(DBG_SYSCALLS, "System:messageBox2 title:'%s' message:'%s' flags:0x%x", title, message, flags);
 	SDL_ShowSimpleMessageBox(0 /* flags */, title, message, g_window);
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
@@ -46,7 +64,7 @@ static void fn_system_set_ini_string(VMContext *c) {
 	const char *key = VM_PopString(c);
 	const char *section = VM_PopString(c);
 	const char *filename = VM_PopString(c);
-	warning("Unimplemented fn_system_set_ini_string %s %s %s %s", filename, section, key, val);
+	warning("Unimplemented System:setINI %s %s %s %s", filename, section, key, val);
 }
 
 static void fn_system_get_ini_string(VMContext *c) {
@@ -54,8 +72,8 @@ static void fn_system_get_ini_string(VMContext *c) {
 	const char *key = VM_PopString(c);
 	const char *section = VM_PopString(c);
 	const char *filename = VM_PopString(c);
-	warning("Unimplemented fn_system_get_ini_string %s %s %s %s", filename, section, key, val);
-	VM_PushString(c, "");
+	warning("Unimplemented System:getINI %s %s %s %s", filename, section, key, val);
+	VM_PushString(c, val ? val : "");
 }
 
 static void fn_system_spawn(VMContext *c) {
@@ -65,9 +83,23 @@ static void fn_system_spawn(VMContext *c) {
 }
 
 static void fn_system_get_language(VMContext *c) {
-	VM_PopInt32(c);
+	const int defaultLanguage = VM_PopInt32(c);
 	warning("Unimplemented System:getLanguage");
-	VM_Push(c, 100000, VAR_TYPE_INT32);
+	int language = defaultLanguage;
+	if (language == 0) {
+		language = 100000; /* English */
+	}
+	VM_Push(c, language, VAR_TYPE_INT32);
+}
+
+static void fn_system_copy_protection(VMContext *c) {
+	warning("Unimplemented System:copyProtection");
+}
+
+static void fn_system_property(VMContext *c) {
+	VM_Pop2(c);
+	VM_PopInt32(c);
+	warning("Unimplemented System:property");
 }
 
 const VMSyscall _syscalls_system[] = {
@@ -82,5 +114,7 @@ const VMSyscall _syscalls_system[] = {
 	{ 60018, fn_system_get_ini_string },
 	{ 60019, fn_system_spawn },
 	{ 60025, fn_system_get_language },
+	{ 60047, fn_system_copy_protection },
+	{ 60048, fn_system_property },
 	{ -1, 0 }
 };

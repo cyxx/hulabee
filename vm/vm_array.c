@@ -1,4 +1,5 @@
 
+#include "random.h"
 #include "util.h"
 #include "vm.h"
 
@@ -7,7 +8,9 @@ VMArray *VM_GetArrayFromHandle(VMContext *c, int num) {
 	if (x < 0 || x >= c->arrays_count) {
 		error("Array handle %d out of range (%d..%d)", num, BASE_HANDLE_ARRAY, BASE_HANDLE_ARRAY + c->arrays_count);
 	}
-	return &c->arrays[x];
+	VMArray *array = &c->arrays[x];
+	assert(array->handle == num);
+	return array;
 }
 
 VMArray *Array_New(VMContext *c) {
@@ -21,7 +24,7 @@ VMArray *Array_New(VMContext *c) {
 
 static void initArray(VMArray *array, int type) {
 	array->type = type;
-	array->unk44 = 0;
+	array->struct_size = 0;
 	int type2 = type;
 	if (type2 & 0x100) {
 		type2 &= ~0x100;
@@ -42,6 +45,10 @@ static void initArray(VMArray *array, int type) {
 			array->elem_size = 4;
 			break;
 		case VAR_TYPE_STRUCT:
+			array->struct_size = (type >> 20) & 0xFF;
+			assert(array->struct_size != 0);
+			array->elem_size = array->struct_size * 4;
+			break;
 		case VAR_TYPE_INT16:
 		case 11:
 		default:
@@ -80,7 +87,7 @@ void Array_Dim2(VMArray *array, int type, int row_lower, int row_upper, int col_
 	array->col_upper = col_upper;
 	array->row_lower = row_lower;
 	array->col_lower = col_lower;
-	array->unk10 = 2;
+	array->dimension = 2;
 	const int size = (row_upper - row_lower + 1) * (col_upper - col_lower + 1) * array->elem_size;
 	array->data = (uint8_t *)malloc(size);
 	if (!array->data) {
@@ -91,7 +98,7 @@ void Array_Dim2(VMArray *array, int type, int row_lower, int row_upper, int col_
 void Array_SetString(VMArray *array, const char *s) {
 	initArray(array, VAR_TYPE_CHAR);
 	array->col_lower = 1;
-	array->unk10 = 1;
+	array->dimension = 1;
 	array->col_upper = (strlen(s) + 1) * array->elem_size;
 	array->data = (uint8_t *)malloc(array->col_upper);
 	if (!array->data) {
@@ -102,6 +109,14 @@ void Array_SetString(VMArray *array, const char *s) {
 }
 
 int Array_Get(VMArray *array, int offset) {
+	if (array->unk4C) {
+		for (int i = 0; i < array->kv_size; ++i) {
+			if (array->kv_data[i].key == offset) {
+				return array->kv_data[i].value;
+			}
+		}
+		return 0;
+	}
 	switch (array->elem_size) {
 	case 1:
 		return array->data[array->offset - array->col_lower + offset];
@@ -114,6 +129,21 @@ int Array_Get(VMArray *array, int offset) {
 }
 
 void Array_Set(VMArray *array, int offset, int value) {
+	if (array->unk4C) {
+		for (int i = 0; i < array->kv_size; ++i) {
+			if (array->kv_data[i].key == offset) {
+				array->kv_data[i].value = value;
+				return;
+			}
+		}
+		array->kv_data = (struct vmarray_key_value_t *)realloc(array->kv_data, (array->kv_size + 1) * sizeof(struct vmarray_key_value_t));
+		if (array->kv_data) {
+			array->kv_data[array->kv_size].key = offset;
+			array->kv_data[array->kv_size].value = value;
+			++array->kv_size;
+		}
+		return;
+	}
 	switch (array->elem_size) {
 	case 1:
 		array->data[array->offset - array->col_lower + offset] = value;
@@ -135,8 +165,13 @@ int Array_Find(VMArray *array, int value) {
 	return 0;
 }
 
+int Array_DeleteIndex(VMArray *array, int value) {
+	warning("Unimplemented Array_DeleteIndex");
+	return 0;
+}
+
 int Array_CheckIndex(VMArray *array, int index) {
-	return array->unk10 != 2 && index >= array->col_lower && index <= array->col_upper;
+	return array->dimension != 2 && index >= array->col_lower && index <= array->col_upper;
 }
 
 static void initUnk28(VMArray *array, int before, int after) {
@@ -170,13 +205,13 @@ void Array_InsertUpper(VMArray *array, int value) {
 	} else {
 		Array_Set(array, array->col_upper, value);
 	}
-	assert(array->unk44 == 0);
+	assert(array->struct_size == 0);
 }
 
 int Array_GetStringLength(VMArray *array) {
 	if (array->type != VAR_TYPE_CHAR) {
 		error("Can't do string operations on non-string array %d", array->handle);
-	} else if (array->unk10 == 2) {
+	} else if (array->dimension == 2) {
 		error("Accessing [n,n] as [n]");
 	} else {
 		assert(array->unk4C == 0);
@@ -192,14 +227,61 @@ int Array_GetStringLength(VMArray *array) {
 	return 0;
 }
 
-int Array_Copy1(VMArray *array) {
-	warning("Array_Copy1 unimplemented");
+int Array_Copy1(VMContext *c, VMArray *array) {
+	if (array->dimension == 1) {
+		VMArray *array2 = Array_New(c);
+		const int lower = array->col_lower;
+		const int upper = array->col_upper;
+		Array_Dim(array2, array->type, 1, upper - lower + 1);
+		for (int x = lower; x <= upper; ++x) {
+			const int val = Array_Get(array, x);
+			Array_Set(array2, x, val);
+		}
+		return array2->handle;
+	} else {
+		error("Array_Copy1 unimplemented dimension:%d", array->dimension);
+	}
 	return array->handle;
 }
 
-int Array_Range1(VMArray *array, int start, int end) {
-	warning("Array_Range1 unimplemented");
-	return array->handle;
+int Array_Range1(VMContext *c, VMArray *array, int start, int end) {
+	if (array->dimension == 2) {
+		error("Accessing [n,n] as [n]");
+	}
+	assert(start <= end);
+	int lower = start;
+	if (lower < array->col_lower) {
+		lower = array->col_lower;
+	}
+	int upper = end;
+	if (upper > array->col_upper) {
+		upper = array->col_upper;
+	}
+	VMArray *array2 = Array_New(c);
+	Array_Dim(array2, array->type, 1, upper - lower + 1);
+	for (int x = lower; x <= upper; ++x) {
+		const int val = Array_Get(array, x);
+		Array_Set(array2, x - lower + 1, val);
+	}
+	return array2->handle;
+}
+
+int Array_Rand(VMArray *array) {
+	int lower = array->col_lower;
+	int upper = array->col_upper;
+	if (array->type == VAR_TYPE_CHAR) {
+		--upper;
+	}
+	int x = GetRandomNumber(lower, upper);
+	if (x == array->unk40) {
+		++x;
+		if (x > upper) {
+			x = upper;
+		}
+	}
+	array->unk40 = x;
+	assert(array->struct_size == 0);
+	return Array_Get(array, x);
 }
 
 const char *ArrayHandle_GetString(VMContext *c, int num) {
@@ -267,6 +349,27 @@ int ArrayHandle_AddString(VMContext *c, int array1, int array2) {
 	return array->handle;
 }
 
+void ArrayHandle_LowerString(VMContext *c, int array) {
+	VMArray *a = VM_GetArrayFromHandle(c, array);
+	checkArrayTypeString(a);
+	for (char *p = (char *)a->data + a->offset; *p; ++p) {
+		if (*p >= 'A' && *p <= 'Z') {
+			*p += 'a' - 'A';
+		}
+	}
+}
+
+void ArrayHandle_UpperString(VMContext *c, int array) {
+	VMArray *a = VM_GetArrayFromHandle(c, array);
+	checkArrayTypeString(a);
+	for (char *p = (char *)a->data + a->offset; *p; ++p) {
+		if (*p >= 'a' && *p <= 'z') {
+			*p += 'A' - 'a';
+		}
+	}
+}
+
 void ArrayHandle_Delete(VMContext *c, int handle) {
 	/* todo */
+	warning("ArrayHandle_Delete unimplemented");
 }

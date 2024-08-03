@@ -201,41 +201,6 @@ void UnloadSob(SobData *sob) {
 	}
 }
 
-static int checkClassRefRange(SobData *sob, int num) {
-	if (num <= 0 || num > sob->refentries_count) {
-		error("Class ref %d out of range (%d..%d)", num, 1, sob->refentries_count);
-	}
-	return num;
-}
-
-static int checkStaticVarRange(SobData *sob, int num) {
-	if (num < 0 || num > sob->staticvars_count) {
-		error("Static index %d out of range (%d..%d)", num, 0, sob->staticvars_count);
-	}
-	return num;
-}
-
-static int checkCodeEntryRange(SobData *sob, int num) {
-	if (num < 0 || num > sob->codeentries_count) {
-		error("Code index %d out of range (%d..%d)", num, 0, sob->codeentries_count);
-	}
-	return num;
-}
-
-static int checkMemberRefRange(SobData *sob, int num) {
-	if (num < 0 || num > sob->refentries_count) {
-		error("Member ref %d out of range (%d..%d)", num, 0, sob->refentries_count);
-	}
-	return num;
-}
-
-static int checkMethodRefRange(SobData *sob, int num) {
-	if (num < 0 || num > sob->refentries_count) {
-		error("Method ref %d out of range (%d..%d)", num, 0, sob->refentries_count);
-	}
-	return num;
-}
-
 int Sob_FindMember(SobData *sob, const char *s) {
 	for (int i = 1; i <= sob->refentries_count; ++i) {
 		const SobRefEntry *ref = &sob->refentries_data[i];
@@ -282,7 +247,9 @@ int Sob_FindStatic(SobData *sob, const char *s) {
 }
 
 SobRefEntry *Sob_GetRefClass(SobData *sob, int num) {
-	checkClassRefRange(sob, num);
+	if (num <= 0 || num > sob->refentries_count) {
+		error("Class ref %d out of range (%d..%d)", num, 1, sob->refentries_count);
+	}
 	SobRefEntry *ref = &sob->refentries_data[num];
 	if (ref->type != SOB_REFERENCE_TYPE_CLASS) {
 		error("Class ref %d does not contain a valid Class", num);
@@ -291,7 +258,9 @@ SobRefEntry *Sob_GetRefClass(SobData *sob, int num) {
 }
 
 SobRefEntry *Sob_GetRefMethod(SobData *sob, int num) {
-	checkMethodRefRange(sob, num);
+	if (num < 0 || num > sob->refentries_count) {
+		error("Method ref %d out of range (%d..%d)", num, 0, sob->refentries_count);
+	}
 	SobRefEntry *ref = &sob->refentries_data[num];
 	if (ref->type != SOB_REFERENCE_TYPE_METHOD) {
 		error("Method ref %d does not contain a valid Method", num);
@@ -311,7 +280,9 @@ SobRefEntry *Sob_GetRefStatic(SobData *sob, int num) {
 }
 
 SobRefEntry *Sob_GetRefMember(SobData *sob, int num) {
-	checkMemberRefRange(sob, num);
+	if (num < 0 || num > sob->refentries_count) {
+		error("Member ref %d out of range (%d..%d)", num, 0, sob->refentries_count);
+	}
 	SobRefEntry *ref = &sob->refentries_data[num];
 	if (ref->type != SOB_REFERENCE_TYPE_MEMBER) {
 		error("Member ref %d does not contain a valid Member", num);
@@ -328,11 +299,15 @@ const char *Sob_GetString(SobData *sob, int num) {
 }
 
 SobCodeEntry *Sob_GetCode(SobData *sob, int num) {
-	checkCodeEntryRange(sob, num);
+	if (num < 0 || num > sob->codeentries_count) {
+		error("Code index %d out of range (%d..%d)", num, 0, sob->codeentries_count);
+	}
 	return &sob->codeentries_data[num];
 }
 
 SobVar *Sob_GetStaticVar(SobData *sob, int num) {
-	checkStaticVarRange(sob, num);
+	if (num < 0 || num > sob->staticvars_count) {
+		error("Static index %d out of range (%d..%d)", num, 0, sob->staticvars_count);
+	}
 	return &sob->staticvars_data[num];
 }

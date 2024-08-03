@@ -22,7 +22,7 @@ static void fn_sprite_at(VMContext *c) {
 
 static void fn_sprite_image(VMContext *c) {
 	const int asset = VM_PopInt32(c);
-	int sprite_num = VM_PopInt32(c);
+	const int sprite_num = VM_PopInt32(c);
 	const int type = Pan_GetAssetType(asset);
 	debug(DBG_SYSCALLS, "Sprite:image sprite:%d asset:%d type:%d", sprite_num, asset, type);
 	PanBuffer pb;
@@ -38,6 +38,11 @@ static void fn_sprite_image(VMContext *c) {
 			error("Unsupported type %d for Sprite:Image", type);
 		}
 	}
+}
+
+static void fn_sprite_destroy(VMContext *c) {
+	const int sprite_num = VM_PopInt32(c);
+	warning("Unimplemented Sprite:destroy sprite:%d", sprite_num);
 }
 
 static void fn_sprite_order(VMContext *c) {
@@ -181,8 +186,8 @@ static void fn_sprite_animation_bounds(VMContext *c) {
 
 static void fn_sprite_loop(VMContext *c) {
 	int a = VM_PopInt32(c);
-	int b = VM_PopInt32(c);
-	warning("Unimplemented Sprite:loop %d %d", a, b);
+	const int sprite_num = VM_PopInt32(c);
+	warning("Unimplemented Sprite:loop %d %d", sprite_num, a);
 }
 
 static void fn_sprite_done(VMContext *c) {
@@ -192,6 +197,9 @@ static void fn_sprite_done(VMContext *c) {
 }
 
 static void fn_sprite_frame_bounds(VMContext *c) {
+	if (c->gameID >= GID_MONSTERS) {
+		VM_PopInt32(c);
+	}
 	int frame = VM_PopInt32(c);
 	int sprite_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Sprite:frameBounds sprite:%d frame:%d", sprite_num, frame);
@@ -204,11 +212,28 @@ static void fn_sprite_frame_bounds(VMContext *c) {
 	VM_Push(c, y2 - y1, VAR_TYPE_INT32);
 }
 
+static void fn_sprite_trigger(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented Sprite:trigger");
+	VM_Push(c, 0, VAR_TYPE_INT32);
+}
+
 static void fn_sprite_triggers(VMContext *c) {
 	VM_PopInt32(c);
 	VM_PopInt32(c);
 	warning("Unimplemented Sprite:triggers");
 	VM_Push(c, 0, VAR_TYPE_INT32);
+}
+
+static void fn_sprite_set_clip_rect(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented Sprite:setClipRect");
 }
 
 static void fn_sprite_flip_x(VMContext *c) {
@@ -253,6 +278,14 @@ static void fn_sprite_has_animation(VMContext *c) {
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
+static void fn_sprite_hit(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented Sprite:hit");
+	VM_Push(c, 0, VAR_TYPE_INT32);
+}
+
 static void fn_sprite_blend_layer(VMContext *c) {
 	VM_PopInt32(c);
 	VM_PopFloat(c);
@@ -265,6 +298,7 @@ const VMSyscall _syscalls_sprite[] = {
 	{ 30001, fn_sprite_create },
 	{ 30002, fn_sprite_at },
 	{ 30003, fn_sprite_image },
+	{ 30004, fn_sprite_destroy },
 	{ 30005, fn_sprite_order },
 	{ 30007, fn_sprite_hidden },
 	{ 30008, fn_sprite_hide },
@@ -288,13 +322,16 @@ const VMSyscall _syscalls_sprite[] = {
 	{ 30029, fn_sprite_loop },
 	{ 30033, fn_sprite_done },
 	{ 30034, fn_sprite_frame_bounds },
+	{ 30037, fn_sprite_trigger },
 	{ 30038, fn_sprite_triggers },
+	{ 30055, fn_sprite_set_clip_rect },
 	{ 30057, fn_sprite_flip_x },
 	{ 30058, fn_sprite_flip_y },
 	{ 30060, fn_sprite_rotate },
 	{ 30061, fn_sprite_scale },
 	{ 30063, fn_sprite_adjust_color },
 	{ 30067, fn_sprite_has_animation },
+	{ 30069, fn_sprite_hit },
 	{ 30075, fn_sprite_blend_layer },
 	{ -1, 0 }
 };

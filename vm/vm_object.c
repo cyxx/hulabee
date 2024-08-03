@@ -7,7 +7,9 @@ VMObject *VM_GetObjectFromHandle(VMContext *c, int num) {
 	if (x < 0 || x >= c->objects_count) {
 		error("Object handle %d out of range (%d..%d)", num, BASE_HANDLE_OBJECT, BASE_HANDLE_OBJECT + c->objects_count);
 	}
-	return &c->objects[x];
+	VMObject *obj = &c->objects[x];
+	assert(obj->handle == num);
+	return obj;
 }
 
 VMObject *Object_New(VMContext *c) {
@@ -48,6 +50,12 @@ int ObjectHandle_Create(VMContext *c, int class_handle) {
 	return obj->handle;
 }
 
-void ObjectHandle_Delete(VMContext *c, int obj_handle, int flag) {
-	/* todo */
+void ObjectHandle_Delete(VMContext *c, int obj_handle, int call_delete) {
+	if (obj_handle != 0) {
+		VMObject *obj = VM_GetObjectFromHandle(c, obj_handle);
+		VM_DeleteObject(c, obj, call_delete);
+		warning("ObjectHandle_Delete unimplemented");
+		free(obj->members);
+		memset(obj, 0, sizeof(VMObject));
+	}
 }

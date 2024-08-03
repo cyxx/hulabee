@@ -42,6 +42,7 @@ void VM_InitSyscalls(VMContext *c) {
 	VM_RegisterSyscalls(c, _syscalls_file);
 	VM_RegisterSyscalls(c, _syscalls_image);
 	VM_RegisterSyscalls(c, _syscalls_input);
+	VM_RegisterSyscalls(c, _syscalls_math);
 	VM_RegisterSyscalls(c, _syscalls_sound);
 	VM_RegisterSyscalls(c, _syscalls_sprite);
 	VM_RegisterSyscalls(c, _syscalls_string);
@@ -223,7 +224,7 @@ static int startMethod(VMContext *c, int class_handle, int obj_handle, int code_
 
 static int callMethod(VMContext *c, VMScript *parent, int class_handle, int obj_handle, int code_num) {
 	if (c->gc_counter == -2) {
-		VM_GC();
+		VM_GC(0);
 	}
 	VMScript script;
 	prepareCall(c, &script, class_handle, obj_handle, code_num);
@@ -264,7 +265,7 @@ static int invokeMethodInternal(VMContext *c, SobData *sob, int method_num, int 
 			return 0;
 		}
 		if (ref->name_index != 0) {
-			debug(DBG_VM, "Starting %s", Sob_GetString(sob, ref->name_index));
+			debug(DBG_VM, "Starting %s.%s", ClassHandle_GetName(c, class_handle), Sob_GetString(sob, ref->name_index));
 		}
 		const int ret = startMethod(c, class_handle, obj_handle, code_num);
 		if (ret != 0) {
@@ -289,7 +290,7 @@ static int invokeMethodInternal(VMContext *c, SobData *sob, int method_num, int 
 			error("Trying to call method @%d with no current method running", method_num);
 		}
 		if (ref->name_index != 0) {
-			debug(DBG_VM, "Calling %s", Sob_GetString(sob, ref->name_index));
+			debug(DBG_VM, "Calling %s.%s", ClassHandle_GetName(c, class_handle), Sob_GetString(sob, ref->name_index));
 		}
 		callMethod(c, c->script, class_handle, obj_handle, code_num);
 	}
@@ -442,7 +443,7 @@ int VM_LoadClass(VMContext *context, const char *name, int error_flag) {
 	char filename[64];
 	snprintf(filename, sizeof(filename), "%s.sob", name);
 	PanBuffer pb;
-	if (Pan_LoadAssetByName(filename, &pb) < 0) {
+	if (!Pan_LoadAssetByName(filename, &pb)) {
 		if (error_flag) {
 			error("Failed to load class '%s'", name);
 		}
@@ -482,7 +483,7 @@ int VM_LoadClass(VMContext *context, const char *name, int error_flag) {
 void VM_StartCallback(VMContext *c, int handle, const char *name) {
 	debug(DBG_VM, "VM_StartCallback '%s' handle:%d", name, handle);
 	if (handle >= BASE_HANDLE_OBJECT) {
-		warning("op_start_callback not implemented obj_handle:%d", handle);
+		error("op_start_callback not implemented obj_handle:%d", handle);
 	} else if (handle >= BASE_HANDLE_CLASS) {
 		startStaticClassMethod(c, handle, name);
 	} else {
@@ -502,8 +503,15 @@ void VM_RunThreads(VMContext *context) {
 	while (thread) {
 		VMThread *next = thread->next;
 		debug(DBG_VM, "Thread id:%d state:%d", thread->id, thread->state);
-		if (thread->state != 3) {
-			int r = executeMethod(context, thread->script, thread, 1);
+		if (thread->state == 3) {
+		} else if (thread->break_counter != 0) {
+			--thread->break_counter;
+		} else {
+			if (context->sp != 0) {
+				warning("Stack not empty between threads");
+				context->sp = 0;
+			}
+			const int r = executeMethod(context, thread->script, thread, 1);
 			if (r != 4 && thread->state != 3) {
 			} else {
 				VM_RemoveThread(context, thread);
@@ -514,7 +522,7 @@ void VM_RunThreads(VMContext *context) {
 	}
 }
 
-void VM_GC() {
+void VM_GC(int flag) {
 	/* todo */
 }
 
@@ -826,7 +834,6 @@ const char *ClassHandle_GetName(VMContext *context, int num) {
 	return c->name;
 }
 
-
 void VM_AddThread(VMContext *c, VMThread *thread) {
 	if (c->threads_head == 0) {
 		c->threads_head = c->threads_tail = thread;
@@ -854,9 +861,24 @@ void VM_RemoveThread(VMContext *c, VMThread *thread) {
 	}
 }
 
+static void stopThreadByObject(VMContext *c, int obj_handle, int thread_num) {
+	for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
+		VMScript *script = thread->script;
+		if (script->obj_handle == obj_handle && thread->id != thread_num) {
+			const uint32_t offset = thread->labels[0];
+			if (offset != 0) {
+				script->code_offset = offset;
+				thread->labels[0] = 0;
+				executeMethod(c, script, thread, 1);
+			}
+			thread->state = 3;
+		}
+	}
+}
+
 void VM_StopThread(VMContext *c, int num, int handle) {
 	if (num >= 3000000 && num <= 3999999) {
-		warning("Unimplemented VM_StopThread num:%d handle:%d", num, handle);
+		stopThreadByObject(c, num, handle);
 	} else {
 		for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
 			if (num == thread->id || num == thread->handle) {
@@ -883,4 +905,19 @@ int VM_CountThreads(VMContext *c, int num) {
 		}
 	}
 	return count;
+}
+
+void VM_DeleteObject(VMContext *c, VMObject *obj, int call_delete) {
+	if (call_delete) {
+		SobData *sob = ClassHandle_GetSob(c, obj->class_handle);
+		const int num = Sob_FindMethod(sob, "_delete_()V");
+		if (num != 0) {
+			if (c->script) {
+				VM_InvokeMethod(c, sob, num, obj->handle, 0, 0, 0);
+			} else {
+				/* todo */
+			}
+		}
+		stopThreadByObject(c, obj->handle, 0);
+	}
 }

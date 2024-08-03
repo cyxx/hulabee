@@ -5,7 +5,7 @@
 #define INI_LINE_LEN 256
 
 static inline int whitespace(char c) {
-	return strchr(" \t", c) != 0;
+	return strchr(" \t\r", c) != 0;
 }
 
 static void copy(char *dst, const char *src, const char *end, const int line) {
@@ -37,7 +37,7 @@ void LoadIni(const uint8_t *data, int size, IniProc proc) {
 	char buf[INI_LINE_LEN + 1];
 	char *section = 0;
 	for (int line = 0; str < end; ++line) {
-		char *endline = strpbrk(str, "\r\n");
+		char *endline = memchr(str, '\n', end - str);
 		copy(buf, str, endline ? endline : end, line);
 		debug(DBG_INI, "INI line:%d '%s'", line, buf);
 		if (!buf[0] || strncmp(buf, "//", 2) == 0 || buf[0] == ';') {

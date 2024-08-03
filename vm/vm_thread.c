@@ -7,7 +7,9 @@ VMThread *VM_GetThreadFromHandle(VMContext *c, int num) {
 	if (x < 0 || x >= c->threads_count) {
 		error("Thread handle %d out of range (%d..%d)", num, BASE_HANDLE_THREAD, BASE_HANDLE_THREAD + c->threads_count);
 	}
-	return &c->threads[x];
+	VMThread *thread = &c->threads[x];
+	assert(thread->handle == num);
+	return thread;
 }
 
 VMThread *Thread_New(VMContext *c) {
@@ -24,8 +26,10 @@ void Thread_Start(VMThread *thread) {
 	thread->state = 1;
 }
 
-void Thread_Stop(VMThread *) {
+void Thread_Stop(VMThread *thread) {
 	/* todo */
+	warning("Thread_Stop unimplemented");
+	thread->state = 3;
 }
 
 void Thread_Define(VMThread *thread, int num, int offset) {
@@ -34,6 +38,20 @@ void Thread_Define(VMThread *thread, int num, int offset) {
 		return;
 	}
 	thread->labels[num] = offset;
+}
+
+void ThreadHandle_GoTo(VMContext *c, int handle, int num) {
+	if (num < 0 || num >= 8) {
+		error("define goto %d out of range (1...%d)", num, 7);
+		return;
+	}
+	for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
+		if (thread->id == handle && thread->labels[num] != 0) {
+			thread->script->code_offset = thread->labels[num];
+			thread->break_counter = 0;
+			thread->break_time = 0;
+		}
+	}
 }
 
 int ThreadHandle_FindId(VMContext *c, int handle) {

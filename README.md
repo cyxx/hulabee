@@ -33,8 +33,9 @@ The `pan_decoder` has been tested with the following games:
 * Little Mermaid Bubble Blast
 * Stitch's Blazing Lasers
 * The Lion King Grubalicious
-* Realms of Gold
+* Four Houses
 * [Word Spiral](https://www.mobygames.com/game/182441/word-spiral/)
+* Realms of Gold
 
 Usage
 ```

@@ -87,12 +87,15 @@ int FindAnimation(Animation *anim, int num) {
 }
 
 int GetAnimationFrameBounds(Animation *anim, int num, int *x1, int *y1, int *x2, int *y2) {
-	assert(num >= 0 && num < anim->entries_count);
-	AnimationFrame *entry = &anim->entries[num];
-	*x1 = entry->bounds_x1;
-	*y1 = entry->bounds_y1;
-	*x2 = entry->bounds_x2;
-	*y2 = entry->bounds_y2;
+	if (num >= 0 && num < anim->entries_count) {
+		AnimationFrame *entry = &anim->entries[num];
+		*x1 = entry->bounds_x1;
+		*y1 = entry->bounds_y1;
+		*x2 = entry->bounds_x2;
+		*y2 = entry->bounds_y2;
+	} else {
+		*x1 = *y1 = *x2 = *y2 = 0;
+	}
 	return 0;
 }
 
@@ -166,7 +169,9 @@ static void decodeHelper(void *userdata, uint32_t *dst, int dst_pitch) {
 }
 
 int GetCanBitmap(Animation *anim, int num, int anim_num, int *x_pos, int *y_pos) {
-	assert(num >= 0 && num < anim->entries_count);
+	if (!(num >= 0 && num < anim->entries_count)) {
+		return -1;
+	}
 	AnimationFrame *entry = &anim->entries[num];
 	const int frame = entry->frames[anim_num].bitmap_num;
 	AnimationBitmap *b = &anim->bitmaps[frame];

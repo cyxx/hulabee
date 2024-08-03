@@ -75,6 +75,15 @@ static void fn_asset_get_data_content(VMContext *c) {
 	}
 }
 
+static void fn_asset_read_ini(VMContext *c) {
+	VM_PopString(c);
+	VM_PopString(c);
+	VM_PopString(c);
+	const int asset = VM_PopInt32(c);
+	warning("Unimplemented Asset:readIni asset:%d", asset);
+	VM_PushString(c, 0);
+}
+
 const VMSyscall _syscalls_asset[] = {
 	{ 160001, fn_asset_load },
 	{ 160002, fn_asset_exists },
@@ -83,6 +92,7 @@ const VMSyscall _syscalls_asset[] = {
 	{ 160005, fn_asset_preload },
 	{ 160008, fn_asset_heap_size },
 	{ 160010, fn_asset_get_data_content },
+	{ 160014, fn_asset_read_ini },
 	{ -1, 0 }
 };
 

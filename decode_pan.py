@@ -45,9 +45,9 @@ def descramble(name):
 ASSET_INI = 0
 ASSET_FFIMG = 1
 ASSET_ACAN = 2
-ASSET_BYTECODE = 3
-ASSET_RIFF = 4
-ASSET_ID3 = 7
+ASSET_SOB = 3
+ASSET_WAV = 4
+ASSET_MP3 = 7
 ASSET_STRINGS = 8
 ASSET_JPEG = 9
 ASSET_PNG = 15
@@ -57,9 +57,9 @@ ASSET_EXTENSIONS = {
 	ASSET_INI: 'ini',
 	ASSET_FFIMG: 'img',
 	ASSET_ACAN: 'can',
-	ASSET_BYTECODE: 'sob',
-	ASSET_RIFF: 'wav',
-	ASSET_ID3: 'mp3',
+	ASSET_SOB: 'sob',
+	ASSET_WAV: 'wav',
+	ASSET_MP3: 'mp3',
 	ASSET_STRINGS: 'txt',
 	ASSET_JPEG: 'jpg',
 	ASSET_PNG: 'png',
@@ -130,13 +130,16 @@ class RsaSignature:
 		except:
 			pass
 
-def read_cstr(f):
+def read_cstr(f, key = 0):
 	s = b''
 	while True:
 		c = f.read(1)
 		if c == b'\x00':
 			break
-		s += c
+		if key != 0:
+			s += bytes([ord(c) ^ key])
+		else:
+			s += c
 	return s.decode('ascii', errors='ignore')
 
 def decode_pan(f, alphabet, dirname, bundle):
@@ -162,10 +165,10 @@ def decode_pan(f, alphabet, dirname, bundle):
 			print('asset:%d type:%d filename:%s' % (i, asset.type, assetname))
 			filename = assetname.replace('/', '_')
 		else:
-			filename = '%s-%04d.%s' % (bundle, i, ASSET_EXTENSIONS.get(asset.type, 'dat'))
+			filename = '%s-%d.%s' % (bundle, asset.id, ASSET_EXTENSIONS.get(asset.type, 'dat'))
 		asset.dump(f, len(assetname) + 1, alphabet, os.path.join(dirname, filename))
 
-GG_HEADER_SIZE = 64
+GG_HEADER_SIZE = 68
 
 class AssetGg:
 	def __init__(self, f):
@@ -191,14 +194,19 @@ def decode_gg(f, alphabet, dirname, bundle, total):
 		tag2 = struct.unpack("<I", f.read(4))[0]
 		assert tag2 == 0x83547502
 		asset = AssetGg(f)
-		skip = asset.size - asset.payload - GG_HEADER_SIZE
-		assert skip > 0
-		f.seek(skip, os.SEEK_CUR)
+		namelen = 4 + asset.size - asset.payload - GG_HEADER_SIZE
+		assetname = read_cstr(f, 0x87)
+		assetid = read_cstr(f, 0x87)
+		assert namelen == len(assetname) + 1 + len(assetid) + 1
 		b = f.read(asset.payload)
 		if VERIFY_ASSET_HASH:
 			h = hashlib.md5(b)
 			assert asset.hash == h.digest()
-		filename = '%s-%04d.%s' % (bundle, asset.id, ASSET_EXTENSIONS.get(asset.type, 'dat'))
+		if assetname and USE_ASSET_FILENAMES:
+			print('asset:%d type:%d filename:%s' % (asset.id, asset.type, assetname))
+			filename = assetname.replace('/', '_')
+		else:
+			filename = '%s-%d.%s' % (bundle, asset.id, ASSET_EXTENSIONS.get(asset.type, 'dat'))
 		with open(os.path.join(dirname, filename), 'wb') as o:
 			for x in b:
 				o.write(alphabet[x])

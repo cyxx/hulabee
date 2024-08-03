@@ -30,6 +30,7 @@ typedef struct {
 
 void Pan_InitShuffleTable(const char *name);
 int Pan_Open(const char *dataPath, const char *gameName, int num);
+int Gg_Open(const char *dataPath, const char *gameName);
 int Pan_HasAsset(uint32_t id);
 int Pan_GetAssetType(uint32_t id);
 int Pan_LoadAssetById(uint32_t id, PanBuffer *buffer);
