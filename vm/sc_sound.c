@@ -32,7 +32,7 @@ static void fn_sound_stop(VMContext *c) {
 static void fn_sound_status(VMContext *c) {
 	VM_PopInt32(c);
 	warning("Unimplemented fn_sound_status");
-	VM_Push(c, 1, VAR_TYPE_INT32);
+	VM_Push(c, 1 /* DONE */, VAR_TYPE_INT32);
 }
 
 static void fn_sound_set_volume(VMContext *c) {
@@ -42,9 +42,9 @@ static void fn_sound_set_volume(VMContext *c) {
 }
 
 static void fn_sound_play_resource(VMContext *c) {
+	const int asset = VM_PopInt32(c);
 	VM_PopInt32(c);
-	VM_PopInt32(c);
-	warning("Unimplemented fn_sound_playResource");
+	warning("Unimplemented fn_sound_playResource asset:%d", asset);
 }
 
 static void fn_sound_halt(VMContext *c) {
@@ -54,26 +54,28 @@ static void fn_sound_halt(VMContext *c) {
 
 static void fn_sound_stop_all(VMContext *c) {
 	VM_PopInt32(c);
-	warning("Unimplemented fn_sound_stop_all");
+	warning("Unimplemented fn_sound_stopAll");
 }
 
 static void fn_sound_master_volume(VMContext *c) {
 	VM_PopInt32(c);
-	warning("Unimplemented fn_sound_master_volume");
+	warning("Unimplemented fn_sound_masterVolume");
 }
 
 static void fn_sound_playing(VMContext *c) {
 	VM_PopInt32(c);
 	warning("Unimplemented fn_sound_playing");
-	VM_Push(c, 0, VAR_TYPE_INT32);
+	VM_Push(c, 1 /* DONE */, VAR_TYPE_INT32);
 }
 
 static void fn_sound_flags(VMContext *c) {
 	VM_PopInt32(c);
-	VM_PopInt32(c);
+	const int mode = VM_PopInt32(c);
 	VM_PopInt32(c);
 	warning("Unimplemented fn_sound_flags");
-	VM_Push(c, 0, VAR_TYPE_INT32);
+	if (mode == 1) {
+		VM_Push(c, 0, VAR_TYPE_INT32);
+	}
 }
 
 const VMSyscall _syscalls_sound[] = {

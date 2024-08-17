@@ -12,6 +12,16 @@ static void copy(char *dst, const char *src, const char *end, const int line) {
 	while (*src && whitespace(*src)) {
 		++src;
 	}
+	/* ';' comments */
+	const char *comment = memchr(src, ';', end - src);
+	if (comment) {
+		end = comment;
+	}
+	/* '//' comments */
+	comment = memchr(src, '/', end - src);
+	if (comment && comment < end && comment[1] == '/') {
+		end = comment;
+	}
 	--end;
 	while (end > src && *end && whitespace(*end)) {
 		--end;
@@ -40,7 +50,7 @@ void LoadIni(const uint8_t *data, int size, IniProc proc) {
 		char *endline = memchr(str, '\n', end - str);
 		copy(buf, str, endline ? endline : end, line);
 		debug(DBG_INI, "INI line:%d '%s'", line, buf);
-		if (!buf[0] || strncmp(buf, "//", 2) == 0 || buf[0] == ';') {
+		if (!buf[0]) {
 			/* empty or commented line */
 		} else {
 			if (buf[0] == '[') {

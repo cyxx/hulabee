@@ -9,31 +9,32 @@
 #include "util.h"
 #include "vm.h"
 
+static const int PAN_HEAP_SIZE = 8 * 1024 * 1024;
+
 #define GAMENAME_LEN 32
 
 typedef struct {
 	const char *name;
-	uint32_t pan000000_size;
 	int gid;
 } GameVersion;
 
 static const GameVersion _gameVersions[] = {
-	{ "autorun",         787550, GID_AUTORUN_AOL_MOOP_SONNY },
-	{ "sonnyrace",     19492068, GID_SONNY,                 },
-	{ "mooptreasure",         0, GID_MOOP,                  },
-	{ "ollofair",             0, GID_OLLO,                  },
-	{ "monsters1",            0, GID_MONSTERS,              },
-	{ "piglet1",              0, GID_PIGLET,                },
-	{ "realmahjong",    4769563, GID_MAHJONG,               },
-	{ "flipoutjr",      4682806, GID_FLIPOUT                },
-	{ "casper2",       10725524, GID_CASPER                 },
-	{ "bubbleblast",   21444457, GID_BUBBLEBLAST            },
-	{ "stitch2",        9583009, GID_STITCH                 },
-	{ "grubalicious2", 13907010, GID_GRUBALICIOUS           },
-	{ "fourhouses",    16663362, GID_FOURHOUSES             },
-	{ "wordspiral",    17873745, GID_WORDSPIRAL,            },
-	{ "realmsofgold",  17540639, GID_REALMSGOLD,            },
-	{ 0, 0, -1 },
+	{ "autorun",       GID_AUTORUN_AOL_MOOP_SONNY },
+	{ "sonnyrace",     GID_SONNY,                 },
+	{ "mooptreasure",  GID_MOOP,                  },
+	{ "ollofair",      GID_OLLO,                  },
+	{ "monsters1",     GID_MONSTERS,              },
+	{ "piglet1",       GID_PIGLET,                },
+	{ "realmahjong",   GID_MAHJONG,               },
+	{ "flipoutjr",     GID_FLIPOUT                },
+	{ "casper2",       GID_CASPER                 },
+	{ "bubbleblast",   GID_BUBBLEBLAST            },
+	{ "stitch2",       GID_STITCH                 },
+	{ "grubalicious2", GID_GRUBALICIOUS           },
+	{ "fourhouses",    GID_FOURHOUSES             },
+	{ "wordspiral",    GID_WORDSPIRAL,            },
+	{ "realmsofgold",  GID_REALMSGOLD,            },
+	{ 0, -1 },
 };
 
 static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName) {
@@ -43,15 +44,22 @@ static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName)
 		if (de->d_name[0] == '.') {
 			continue;
 		}
-		const char *sep = strchr(de->d_name, '-');
+		const char *ext = strrchr(de->d_name, '.');
+		if (!ext) {
+			continue;
+		}
+		int gg = 0;
+		if (strcmp(ext + 1, "gg") == 0) {
+			gg = 1;
+		} else if (strcmp(ext + 1, "pan") != 0) {
+			continue;
+		}
+		const char *sep = strrchr(de->d_name, '-');
 		if (!sep) {
 			continue;
 		}
-		int num, gg = 0;
-		if (strcmp(sep + 1, "000000.gg") == 0) {
-			gg = 1;
-			num = 0;
-		} else if (sscanf(sep + 1, "%06d.pan", &num) != 1) {
+		int num = 0;
+		if (sscanf(sep + 1, "%06d", &num) != 1) {
 			continue;
 		}
 		debug(DBG_PAN, "Found pan id:%06d gg:%d", num, gg);
@@ -76,17 +84,8 @@ static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName)
 				if (strcasecmp(gameName, _gameVersions[i].name) != 0) {
 					continue;
 				}
-				if (_gameVersions[i].pan000000_size == 0) {
-					gameVersion = &_gameVersions[i];
-					break;
-				}
-				char path[MAXPATHLEN];
-				snprintf(path, sizeof(path), "%s/%s", dataPath, de->d_name);
-				struct stat st;
-				if (stat(path, &st) == 0 && st.st_size == _gameVersions[i].pan000000_size) {
-					gameVersion = &_gameVersions[i];
-					break;
-				}
+				gameVersion = &_gameVersions[i];
+				break;
 			}
 		}
 	}
@@ -165,7 +164,12 @@ int main(int argc, char *argv[]) {
 		if (!gameName[0]) {
 			warning("No SAUCE game found in '%s'", dataPath);
 		} else {
+			if (version->gid >= GID_MOOP) {
+				_windowW = 800;
+				_windowH = 600;
+			}
 			Pan_InitShuffleTable(gameName);
+			Pan_InitHeap(PAN_HEAP_SIZE);
 			ParseGameIni();
 			VMContext *c = VM_NewContext();
 			if (version) {

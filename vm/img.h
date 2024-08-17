@@ -10,12 +10,9 @@ enum {
 	BMP_FMT_JPEG
 };
 
-typedef struct bitmap_t {
-	int w, h;
-	int texture;
-} Bitmap;
+struct SDL_Surface;
 
-void LoadImg(const uint8_t *data, int size, Bitmap *bmp);
-void LoadJpg(const uint8_t *data, int size, Bitmap *bmp);
+struct SDL_Surface *LoadImg(const uint8_t *data, int size);
+struct SDL_Surface *LoadJpg(const uint8_t *data, int size);
 
 #endif /* IMG_H__ */

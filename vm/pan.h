@@ -11,6 +11,7 @@ enum {
 	PAN_ASSET_TYPE_SOB = 3,
 	PAN_ASSET_TYPE_WAV = 4,
 	PAN_ASSET_TYPE_MP3 = 7,
+	PAN_ASSET_TYPE_TXT = 8,
 	PAN_ASSET_TYPE_JPG = 9,
 };
 
@@ -24,11 +25,13 @@ typedef struct {
 } PanAsset;
 
 typedef struct {
-	uint8_t *buffer;
+	const uint8_t *buffer;
 	int size;
+	uint16_t index;
 } PanBuffer;
 
 void Pan_InitShuffleTable(const char *name);
+void Pan_InitHeap(int size);
 int Pan_Open(const char *dataPath, const char *gameName, int num);
 int Gg_Open(const char *dataPath, const char *gameName);
 int Pan_HasAsset(uint32_t id);

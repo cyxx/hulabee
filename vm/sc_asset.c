@@ -1,4 +1,5 @@
 
+#include "ini.h"
 #include "pan.h"
 #include "util.h"
 #include "vm.h"
@@ -9,13 +10,14 @@ static void fn_asset_load(VMContext *c) {
 	if (num) {
 		s = ArrayHandle_GetString(c, num);
 	}
-	int a = VM_PopInt32(c);
-	int b = VM_PopInt32(c);
-	warning("Unimplemented Asset:load '%s' %d %d", s, a, b);
+	const int a = VM_PopInt32(c);
+	const int asset = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Asset:load asset:%d %d '%s'", asset, a, s);
+	Pan_LoadAssetById(asset, 0);
 }
 
 static void fn_asset_exists(VMContext *c) {
-	int asset = VM_PopInt32(c);
+	const int asset = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Asset:exists asset:%d", asset);
 	VM_Push(c, Pan_HasAsset(asset), VAR_TYPE_INT32);
 }
@@ -27,7 +29,7 @@ static void fn_asset_load_assets_def(VMContext *c) {
 		s = ArrayHandle_GetString(c, num);
 	}
 	VM_Push(c, 0, VAR_TYPE_INT32);
-	warning("Unimplemented Asset:loadAssetsDef %s %d", s, num);
+	warning("Unimplemented Asset:loadAssetsDef '%s'", s);
 }
 
 static void fn_asset_use_pan_files(VMContext *c) {
@@ -35,8 +37,9 @@ static void fn_asset_use_pan_files(VMContext *c) {
 }
 
 static void fn_asset_preload(VMContext *c) {
-	VM_PopInt32(c);
-	warning("Unimplemented Asset:preload");
+	const int asset = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Asset:preload asset:%d", asset);
+	Pan_LoadAssetById(asset, 0);
 }
 
 static void fn_asset_heap_size(VMContext *c) {
@@ -50,23 +53,34 @@ static void fn_asset_get_data_content(VMContext *c) {
 	const int mode = VM_PopInt32(c);
 	switch (mode) {
 	case 1:
-		if (Pan_GetAssetType(asset) != 8) {
+		if (Pan_GetAssetType(asset) != PAN_ASSET_TYPE_TXT) {
 			error("Asset %d is not a string", asset);
 		} else {
-			warning("getDataContent mode:%d unimplemented", mode);
-			VM_PushString(c, 0);
+			int array_handle = 0;
+			PanBuffer pb;
+			if (Pan_LoadAssetById(asset, &pb)) {
+				VMArray *array = Array_New(c);
+				Array_Dim(array, 0x10000 | VAR_TYPE_CHAR, 1, pb.size + 1);
+				memcpy(array->data, pb.buffer, pb.size);
+				array->data[pb.size] = 0;
+				array_handle = array->handle;
+			}
+			VM_Push(c, array_handle, 0x10000 | VAR_TYPE_CHAR);
 		}
 		break;
 	case 2:
 		if (Pan_GetAssetType(asset) != 10) {
 			error("Asset %d is not data", asset);
 		} else {
-			int array = 0;
+			int array_handle = 0;
 			PanBuffer pb;
 			if (Pan_LoadAssetById(asset, &pb)) {
-				// array = loadDataAsArray(VAR_TYPE_INT32, buffer);
+				VMArray *array = Array_New(c);
+				Array_Dim(array, 0x10000 | VAR_TYPE_INT32, 1, pb.size / sizeof(uint32_t));
+				memcpy(array->data, pb.buffer, pb.size);
+				array_handle = array->handle;
 			}
-			VM_Push(c, array, 0x10000 | VAR_TYPE_INT32);
+			VM_Push(c, array_handle, 0x10000 | VAR_TYPE_INT32);
 		}
 		break;
 	default:
@@ -75,13 +89,22 @@ static void fn_asset_get_data_content(VMContext *c) {
 	}
 }
 
+static void parse_asset_ini(const char *section, const char *key, const char *value) {
+	fprintf(stdout, "Asset:Ini section:%s %s=%s\n", section, key, value);
+}
+
 static void fn_asset_read_ini(VMContext *c) {
-	VM_PopString(c);
-	VM_PopString(c);
-	VM_PopString(c);
+	const char *val = VM_PopString(c);
+	const char *key = VM_PopString(c);
+	const char *section = VM_PopString(c);
 	const int asset = VM_PopInt32(c);
-	warning("Unimplemented Asset:readIni asset:%d", asset);
-	VM_PushString(c, 0);
+	warning("Unimplemented Asset:readIni asset:%d section:'%s' key:'%s'", asset, section, key);
+	PanBuffer pb;
+	if (Pan_LoadAssetById(asset, &pb)) {
+		LoadIni(pb.buffer, pb.size, parse_asset_ini);
+		Pan_UnloadAsset(&pb);
+	}
+	VM_PushString(c, val);
 }
 
 const VMSyscall _syscalls_asset[] = {

@@ -4,67 +4,39 @@
 #include "host_sdl2.h"
 #include "util.h"
 
-#define TEXTURES_COUNT 256
-
-static SDL_Renderer *_renderer;
 SDL_Window *g_window;
 
-static SDL_Texture *_textures[TEXTURES_COUNT];
-static int _texturesCount;
-
-static int _backgroundTexture = -1;
-
-int CreateTexture(int w, int h, int fmt, void (*decode)(void *, uint32_t *, int), void *userdata) {
-	SDL_Texture *texture = SDL_CreateTexture(_renderer, fmt, SDL_TEXTUREACCESS_STREAMING, w, h);
-	void *dst = 0;
-	int pitch = 0;
-	if (SDL_LockTexture(texture, 0, &dst, &pitch) == 0) {
-		assert((pitch & 3) == 0);
-		decode(userdata, (uint32_t *)dst, pitch / sizeof(uint32_t));
-		SDL_UnlockTexture(texture);
-	}
-	SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-	const int num = _texturesCount;
-	assert(num < TEXTURES_COUNT);
-	_textures[_texturesCount++] = texture;
-	return num;
-}
-
-SDL_Texture *GetTexture(int num) {
-	assert(num >= 0 && num < _texturesCount);
-	return _textures[num];
-}
+static SDL_Surface *_background;
 
 #define IMAGES_COUNT 32
 
-typedef struct {
-	int texture;
-} Image;
-
-static Image _images[IMAGES_COUNT];
+static HostImage _images[IMAGES_COUNT];
 static int _imagesCount;
 
-int Host_CreateImage(struct bitmap_t *b) {
+int Host_CreateImage(SDL_Surface *s) {
 	const int num = _imagesCount;
 	assert(num < IMAGES_COUNT);
-	Image *img = &_images[_imagesCount++];
-	memset(img, 0, sizeof(Image));
-	img->texture = b->texture;
+	HostImage *img = &_images[_imagesCount++];
+	memset(img, 0, sizeof(HostImage));
+	img->handle = num;
+	img->s = s;
 	return num;
+}
+
+HostImage *HostImage_Get(int handle) {
+	assert(handle >= 0 && handle < IMAGES_COUNT);
+	HostImage *img = &_images[handle];
+	assert(img->handle == handle);
+	return img;
 }
 
 #define SPRITES_COUNT 64
 
 typedef struct {
-	Animation animation_data;
-	int current_anim;
-	int current_frame;
-	int x, y;
-	int texture;
-	int order;
-	int hidden;
+	CanData animation_data;
 } Sprite;
 
+static HostSprite _sprites2[SPRITES_COUNT];
 static Sprite _sprites[SPRITES_COUNT];
 static int _spritesCount;
 
@@ -73,8 +45,15 @@ int Host_CreateSprite() {
 	assert(num < SPRITES_COUNT);
 	Sprite *spr = &_sprites[_spritesCount++];
 	memset(spr, 0, sizeof(Sprite));
-	spr->texture = -1;
+	HostSprite *spr2 = &_sprites2[num];
+	spr2->handle = num;
 	return num;
+}
+
+HostSprite *HostSprite_Get(int handle) {
+	assert(handle >= 0 && handle < SPRITES_COUNT);
+	HostSprite *spr = &_sprites2[handle];
+	return spr;
 }
 
 static Sprite *getSprite(int num) {
@@ -83,80 +62,68 @@ static Sprite *getSprite(int num) {
 }
 
 int Host_GetSpriteAnim(int spr_num) {
-	Sprite *spr = getSprite(spr_num);
-	return spr->current_anim;
+	HostSprite *spr = HostSprite_Get(spr_num);
+	int current_anim = 0;
+	if (spr->animation_state) {
+		current_anim = spr->animation_state->current_animation;
+	}
+	return current_anim;
 }
 
 void Host_SetSpriteAnim(int spr_num, int anim) {
 	Sprite *spr = getSprite(spr_num);
-	spr->current_anim = anim;
-	spr->current_frame = 0;
-	int x2, y2;
-	GetAnimationFrameBounds(&spr->animation_data, anim, &spr->x, &spr->y, &x2, &y2);
-	int x1, y1;
-	spr->texture = GetCanBitmap(&spr->animation_data, anim, 0, &x1, &y1);
+	HostSprite *spr2 = &_sprites2[spr_num];
+	GetAnimationPos(&spr->animation_data, anim, &spr2->x, &spr2->y);
+	if (!spr2->animation_state) {
+		spr2->animation_state = (CanAnimationState *)malloc(sizeof(CanAnimationState));
+	}
+	if (spr2->animation_state) {
+		Can_Reset(&spr->animation_data, spr2->animation_state, SDL_GetTicks());
+		spr2->animation_state->current_animation = anim;
+	}
 }
 
 void Host_SetSpritePos(int spr_num, int x, int y) {
-	Sprite *spr = getSprite(spr_num);
-	spr->x += x;
-	spr->y += y;
+	HostSprite *spr = &_sprites2[spr_num];
+	spr->x = x;
+	spr->y = y;
 }
 
-void Host_SetSpriteTexture(int spr_num, int texture) {
-	Sprite *spr = getSprite(spr_num);
-	spr->texture = texture;
+void Host_SetSpriteImage(int spr_num, SDL_Surface *s) {
+	HostSprite *spr2 = &_sprites2[spr_num];
+	spr2->image = s;
 }
 
-void Host_GetSpritePos(int spr_num, int *x, int *y) {
-	Sprite *spr = getSprite(spr_num);
-	if (x) {
-		*x = spr->x;
-	}
-	if (y) {
-		*y = spr->y;
-	}
-}
-
-void Host_SetSpriteOrder(int spr_num, int order) {
-	Sprite *spr = getSprite(spr_num);
-	spr->order = order;
-}
-
-void Host_ShowSprite(int spr_num, int show) {
-	Sprite *spr = getSprite(spr_num);
-	spr->hidden = !show;
-}
-
-int Host_IsSpriteHidden(int spr_num) {
-	Sprite *spr = getSprite(spr_num);
-	return spr->hidden;
-}
-
-void Host_SetSpriteImage(int spr_num, struct bitmap_t *b) {
-	Sprite *spr = getSprite(spr_num);
-	spr->texture = b->texture;
-}
-
-Animation *Host_GetSpriteAnimationData(int spr_num) {
+CanData *Host_GetSpriteAnimationData(int spr_num) {
 	Sprite *spr = getSprite(spr_num);
 	return &spr->animation_data;
 }
 
 void Host_GetSpriteSize(int spr_num, int *w, int *h) {
 	Sprite *spr = getSprite(spr_num);
-	int x1, y1, x2, y2;
-	GetAnimationFrameBounds(&spr->animation_data, 0, &x1, &y1, &x2, &y2);
-	if (w) {
-		*w = x2 - x1 + 1;
-	}
-	if (h) {
-		*h = y2 - y1 + 1;
+	HostSprite *spr2 = &_sprites2[spr_num];
+	if (spr2->image) {
+		*w = spr2->image->w;
+		*h = spr2->image->h;
+	} else {
+		HostSprite *spr2 = &_sprites2[spr_num];
+		int current_anim = 0;
+		if (spr2->animation_state) {
+			current_anim = spr2->animation_state->current_animation;
+		}
+		int x1, y1, x2, y2;
+		GetAnimationBounds(&spr->animation_data, current_anim, &x1, &y1, &x2, &y2);
+		if (w) {
+			*w = x2 - x1 + 1;
+		}
+		if (h) {
+			*h = y2 - y1 + 1;
+		}
 	}
 }
 
-void Host_SetWindowBackgroundTexture(int texture) {
-	_backgroundTexture = texture;
+void Host_SetWindowBackground(SDL_Surface *s) {
+	_background = s;
 }
 
 static int _prevButtons, _currentButtons;
@@ -172,35 +139,62 @@ int Host_GetRightClick() {
 void Host_Init(const char *window_name, int window_w, int window_h) {
 	SDL_Init(SDL_INIT_VIDEO);
 	g_window = SDL_CreateWindow(window_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_w, window_h, 0 /* flags */);
-	_renderer = SDL_CreateRenderer(g_window, -1, 0);
 }
 
 void Host_Fini() {
-	SDL_DestroyRenderer(_renderer);
 	SDL_DestroyWindow(g_window);
 	SDL_Quit();
 }
 
-static void draw() {
-	SDL_RenderClear(_renderer);
-	if (_backgroundTexture != -1) {
-		SDL_Texture *background = GetTexture(_backgroundTexture);
-		if (background) {
-			SDL_RenderCopy(_renderer, background, 0, 0);
-		}
-	}
+static void animate_sprites() {
 	for (int i = 0; i < _spritesCount; ++i) {
-		Sprite *spr = &_sprites[i];
-		if (!spr->hidden && !(spr->texture < 0)) {
-			SDL_Rect dst;
-			dst.x = spr->x;
-			dst.y = spr->y;
-			SDL_Texture *texture = GetTexture(spr->texture);
-			SDL_QueryTexture(texture, 0, 0, &dst.w, &dst.h);
-			SDL_RenderCopy(_renderer, texture, 0, &dst);
+		HostSprite *spr2 = &_sprites2[i];
+		if (spr2->animation_state) {
+			Sprite *spr = &_sprites[i];
+			Can_Update(&spr->animation_data, spr2->animation_state, SDL_GetTicks());
 		}
 	}
-	SDL_RenderPresent(_renderer);
+}
+
+static int compareSpriteOrder(const void *a, const void *b) {
+	const HostSprite *spr1 = (const HostSprite *)a;
+	const HostSprite *spr2 = (const HostSprite *)b;
+	return spr1->order - spr2->order;
+}
+
+static void draw() {
+	SDL_Surface *screen = SDL_GetWindowSurface(g_window);
+	SDL_FillRect(screen, 0, SDL_MapRGB(screen->format, 0x00, 0x00, 0x00));
+	if (_background) {
+		SDL_BlitSurface(_background, 0, screen, 0);
+	}
+	HostSprite sprites[SPRITES_COUNT];
+	memcpy(sprites, _sprites2, _spritesCount * sizeof(HostSprite));
+	qsort(sprites, _spritesCount, sizeof(HostSprite), compareSpriteOrder);
+	for (int i = 0; i < _spritesCount; ++i) {
+		HostSprite *spr2 = &sprites[i];
+		Sprite *spr = &_sprites[spr2->handle];
+		if (!spr2->hidden) {
+			SDL_Surface *s = spr2->image;
+			if (s) {
+				SDL_Rect dst;
+				dst.x = spr2->x;
+				dst.y = spr2->y;
+				dst.w = s->w;
+				dst.h = s->h;
+				SDL_BlitSurface(s, 0, screen, &dst);
+			} else {
+				int current_anim = 0;
+				int current_frame = 0;
+				if (spr2->animation_state) {
+					current_anim = spr2->animation_state->current_animation;
+					current_frame = spr2->animation_state->current_frame;
+				}
+				Can_Draw(&spr->animation_data, current_anim, current_frame, screen, spr2->x, spr2->y, 0 /* flags */);
+			}
+		}
+	}
+	SDL_UpdateWindowSurface(g_window);
 }
 
 void Host_MainLoop(int interval, void (*update)(void *), void *userdata) {
@@ -217,6 +211,7 @@ void Host_MainLoop(int interval, void (*update)(void *), void *userdata) {
 		_prevButtons = _currentButtons;
 		_currentButtons = SDL_GetMouseState(0, 0);
 		update(userdata);
+		animate_sprites();
 		draw();
 		SDL_Delay(interval);
 	}

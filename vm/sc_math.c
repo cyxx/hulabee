@@ -19,11 +19,37 @@ static void fn_math_tan(VMContext *c) {
 }
 
 static void fn_math_point_in_poly(VMContext *c) {
-	VM_Pop(c, 0x10000 | VAR_TYPE_INT32);
-	VM_PopInt32(c);
-	VM_PopInt32(c);
-	warning("Unimplemented math:pointInPoly");
-	VM_Push(c, 0, VAR_TYPE_INT32);
+	const int array = VM_Pop(c, 0x10000 | VAR_TYPE_INT32);
+	const int y = VM_PopInt32(c);
+	const int x = VM_PopInt32(c);
+	VMArray *vertices = VM_GetArrayFromHandle(c, array);
+	const int count = (vertices->col_upper - vertices->col_lower + 1);
+	assert((count & 1) == 0 && count >= 6);
+	const int num_vertices = (count / 2);
+	debug(DBG_SYSCALLS, "math:pointInPoly [%d,%d] vertices:%d", x, y, num_vertices);
+
+	int inside = 0;
+	int p1_x = READ_LE_UINT32(vertices->data);
+	int p1_y = READ_LE_UINT32(vertices->data + 4);
+	for (int i = 1; i <= num_vertices; ++i) {
+		int p2_x = READ_LE_UINT32(vertices->data + (i % num_vertices) * 8);
+		int p2_y = READ_LE_UINT32(vertices->data + (i % num_vertices) * 8 + 4);
+		if (y > MIN(p1_y, p2_y) && y <= MAX(p1_y, p2_y)) {
+			if (x <= MAX(p1_x, p2_x)) {
+				if (p1_x == p2_x) {
+					inside = !inside;
+				} else {
+					const int intersection = (y - p1_y) * (p2_x - p1_x) / (p2_y - p1_y) + p1_x;
+					if (x <= intersection) {
+						inside = !inside;
+					}
+				}
+			}
+		}
+		p1_x = p2_x;
+		p1_y = p2_y;
+	}
+	VM_Push(c, inside, VAR_TYPE_INT32);
 }
 
 static void fn_math_asin(VMContext *c) {

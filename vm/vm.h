@@ -76,7 +76,7 @@ typedef struct {
 	int unk34;
 	int unk40;
 	int struct_size;
-	int unk4C;
+	int is_key_value;
 	struct vmarray_key_value_t *kv_data;
 	int kv_size;
 } VMArray;
@@ -91,7 +91,7 @@ typedef struct {
 struct vmscript_t;
 
 typedef struct vmthread_t {
-	int handle;
+	uint32_t handle;
 	int id;
 	int order;
 	int unkC;
@@ -198,7 +198,7 @@ void Array_SetString(VMArray *array, const char *s);
 int Array_Get(VMArray *array, int offset);
 void Array_Set(VMArray *array, int offset, int value);
 int Array_Find(VMArray *array, int value);
-int Array_DeleteIndex(VMArray *array, int offset);
+int Array_DeleteIndex(VMArray *array, int start, int end);
 int Array_CheckIndex(VMArray *array, int offset);
 void Array_InsertUpper(VMArray *array, int value);
 int Array_GetStringLength(VMArray *array);

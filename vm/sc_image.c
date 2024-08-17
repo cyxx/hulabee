@@ -6,10 +6,10 @@
 #include "vm.h"
 
 static void fn_image_new_size(VMContext *c) {
-	VM_PopInt32(c);
-	VM_PopInt32(c);
-	VM_PopInt32(c);
-	warning("Unimplemented Image:newSize()");
+	const int d = VM_PopInt32(c);
+	const int h = VM_PopInt32(c);
+	const int w = VM_PopInt32(c);
+	warning("Unimplemented Image:newSize w:%d h:%d %d", w, h, d);
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
@@ -23,9 +23,9 @@ static void fn_image_new_image(VMContext *c) {
 	if (type == PAN_ASSET_TYPE_IMG) {
 		PanBuffer pb;
 		if (Pan_LoadAssetById(asset, &pb)) {
-			Bitmap bmp;
-			LoadImg(pb.buffer, pb.size, &bmp);
-			num = Host_CreateImage(&bmp);
+			SDL_Surface *s = LoadImg(pb.buffer, pb.size);
+			num = Host_CreateImage(s);
+			Pan_UnloadAsset(&pb);
 		}
 	} else {
 		error("Unhandled asset type:%d for Image", type);
@@ -42,20 +42,21 @@ static void fn_image_draw(VMContext *c) {
 }
 
 static void fn_image_image_at(VMContext *c) {
-	int y = VM_PopInt32(c);
-	int x = VM_PopInt32(c);
+	int b = VM_PopInt32(c);
+	int a = VM_PopInt32(c);
 	int frame = VM_PopInt32(c);
 	int anim = VM_PopInt32(c);
 	int asset = VM_PopInt32(c);
-	int unk = VM_PopInt32(c);
+	int num = VM_PopInt32(c);
 	int type = Pan_GetAssetType(asset);
-	warning("Unimplemented Image:imageAt asset:%d type:%d", asset, type);
+	warning("Unimplemented Image:imageAt asset:%d type:%d image:%d %d %d %d %d %d", asset, type, num, anim, frame, a, b);
+	assert(Pan_HasAsset(asset));
 }
 
 static void fn_image_clear(VMContext *c) {
 	int color = VM_PopInt32(c);
 	int num = VM_PopInt32(c);
-	warning("Unimplemented Image:clear num:%d color:%d", num, color);
+	warning("Unimplemented Image:clear num:%d color:0x%x", num, color);
 }
 
 static void fn_image_print_at(VMContext *c) {
@@ -87,20 +88,24 @@ static void fn_image_print(VMContext *c) {
 }
 
 static void fn_image_get_x_size(VMContext *c) {
-	VM_PopInt32(c);
-	VM_Push(c, 0, VAR_TYPE_INT32);
-	warning("Unimplemented Image:x_size");
+	const int image_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Image:x_size num:%d", image_num);
+	HostImage *img = HostImage_Get(image_num);
+	const SDL_Surface *s = img->s;
+	VM_Push(c, s ? s->w : 0, VAR_TYPE_INT32);
 }
 
 static void fn_image_get_y_size(VMContext *c) {
-	VM_PopInt32(c);
-	VM_Push(c, 0, VAR_TYPE_INT32);
-	warning("Unimplemented Image:y_size");
+	const int image_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Image:y_size num:%d", image_num);
+	HostImage *img = HostImage_Get(image_num);
+	const SDL_Surface *s = img->s;
+	VM_Push(c, s ? s->h : 0, VAR_TYPE_INT32);
 }
 
 static void fn_image_destroy(VMContext *c) {
-	VM_PopInt32(c);
-	warning("Unimplemented Image:destroy");
+	const int image_num = VM_PopInt32(c);
+	warning("Unimplemented Image:destroy num:%d", image_num);
 }
 
 const VMSyscall _syscalls_image[] = {

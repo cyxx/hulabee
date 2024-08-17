@@ -15,7 +15,7 @@ static void fn_system_timer(VMContext *c) {
 static void fn_system_gc(VMContext *c) {
 	const int counter = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "System:gc counter:%d", counter);
-	if (counter == -1) {
+	if (counter == -1) { /* NOW */
 		VM_GC(1);
 	} else {
 		c->gc_counter = counter;
@@ -23,17 +23,42 @@ static void fn_system_gc(VMContext *c) {
 }
 
 static void fn_system_query(VMContext *c) {
-	int what = VM_PopInt32(c);
+	const int what = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "System:query what:%d", what);
 	switch (what) {
 	case 1: /* environment */
 		VM_Push(c, 1, VAR_TYPE_INT32);
 		break;
 	case 2: /* OS */
-		VM_Push(c, 0, VAR_TYPE_INT32); /* 2 for Windows */
+		// 1: MAC
+		// 2: WINDOWS
+		VM_Push(c, 0, VAR_TYPE_INT32);
 		break;
-	case 3: /* Physical RAM */
+	case 3: { /* Physical RAM (bytes) */
+			int memory_mb = SDL_GetSystemRAM();
+			if (memory_mb > 1024) {
+				memory_mb = 1024;
+			}
+			VM_Push(c, memory_mb << 20, VAR_TYPE_INT32);
+		}
+		break;
 	case 4: /* Processor */
-	case 5: /* Processor Speed */
+		// 1: I486
+		// 2: PENTIUM
+		// 3: PENTIUM2
+		// 3: PENTIUM3
+		// 101: M68000
+		// 102: POWERPC
+		VM_Push(c, 3, VAR_TYPE_INT32);
+		break;
+	case 5: /* Processor Speed (MHz) */
+		{
+			/* use perf counter as an approximation */
+			const uint64_t f = SDL_GetPerformanceFrequency();
+			const uint32_t f_mhz = f / (1000 * 1000);
+			VM_Push(c, f_mhz, VAR_TYPE_INT32);
+		}
+		break;
 	default:
 		warning("Unhandled system:query %d", what);
 		VM_Push(c, 0, VAR_TYPE_INT32);
@@ -82,13 +107,41 @@ static void fn_system_spawn(VMContext *c) {
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
+static const struct {
+	const char *code;
+	int language;
+} _LANGUAGES[] = {
+	{ "en", 100000 },
+	{ "fr", 200000 },
+	{ "de", 300000 },
+	{ "sp", 400000 },
+	{ "it", 600000 },
+	{ "nl", 700000 },
+	{ "jp", 800000 },
+	{ "ko", 900000 },
+	{ 0, 0 }
+};
+
 static void fn_system_get_language(VMContext *c) {
 	const int defaultLanguage = VM_PopInt32(c);
-	warning("Unimplemented System:getLanguage");
 	int language = defaultLanguage;
+	SDL_Locale *locales = SDL_GetPreferredLocales();
+	if (locales) {
+		/* lookup the first locale */
+		if (locales->language) {
+			for (int i = 0; _LANGUAGES[i].code; ++i) {
+				if (strncmp(_LANGUAGES[i].code, locales->language, strlen(_LANGUAGES[i].code)) == 0) {
+					language = _LANGUAGES[i].language;
+					break;
+				}
+			}
+		}
+		SDL_free(locales);
+	}
 	if (language == 0) {
 		language = 100000; /* English */
 	}
+	debug(DBG_SYSCALLS, "System:getLanguage %d default:%d", language, defaultLanguage);
 	VM_Push(c, language, VAR_TYPE_INT32);
 }
 

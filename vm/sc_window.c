@@ -17,16 +17,20 @@ static void fn_window_background(VMContext *c) {
 	if (type == PAN_ASSET_TYPE_IMG) {
 		PanBuffer pb;
 		if (Pan_LoadAssetById(asset, &pb)) {
-			Bitmap bmp;
-			LoadImg(pb.buffer, pb.size, &bmp);
-			Host_SetWindowBackgroundTexture(bmp.texture);
+			SDL_Surface *s = LoadImg(pb.buffer, pb.size);
+			if (s) {
+				Host_SetWindowBackground(s);
+			}
+			Pan_UnloadAsset(&pb);
 		}
 	} else if (type == PAN_ASSET_TYPE_JPG) {
 		PanBuffer pb;
 		if (Pan_LoadAssetById(asset, &pb)) {
-			Bitmap bmp;
-			LoadJpg(pb.buffer, pb.size, &bmp);
-			Host_SetWindowBackgroundTexture(bmp.texture);
+			SDL_Surface *s = LoadJpg(pb.buffer, pb.size);
+			if (s) {
+				Host_SetWindowBackground(s);
+			}
+			Pan_UnloadAsset(&pb);
 		}
 	} else {
 		error("Unsupported asset type:%d for window:background", type);

@@ -109,7 +109,7 @@ void Array_SetString(VMArray *array, const char *s) {
 }
 
 int Array_Get(VMArray *array, int offset) {
-	if (array->unk4C) {
+	if (array->is_key_value) {
 		for (int i = 0; i < array->kv_size; ++i) {
 			if (array->kv_data[i].key == offset) {
 				return array->kv_data[i].value;
@@ -129,7 +129,7 @@ int Array_Get(VMArray *array, int offset) {
 }
 
 void Array_Set(VMArray *array, int offset, int value) {
-	if (array->unk4C) {
+	if (array->is_key_value) {
 		for (int i = 0; i < array->kv_size; ++i) {
 			if (array->kv_data[i].key == offset) {
 				array->kv_data[i].value = value;
@@ -165,9 +165,24 @@ int Array_Find(VMArray *array, int value) {
 	return 0;
 }
 
-int Array_DeleteIndex(VMArray *array, int value) {
-	warning("Unimplemented Array_DeleteIndex");
-	return 0;
+int Array_DeleteIndex(VMArray *array, int start, int end) {
+	assert(!array->is_key_value);
+	assert(start <= end);
+	if (start < array->col_lower) {
+		start = array->col_lower;
+	}
+	if (end > array->col_upper) {
+		end = array->col_upper;
+	}
+	const int count = end - start + 1;
+	for (int i = start; i + count <= array->col_upper; ++i) {
+		Array_Set(array, i, Array_Get(array, i + count));
+	}
+	array->col_upper -= count;
+	if (array->type == VAR_TYPE_CHAR) {
+		Array_Set(array, array->col_upper, 0);
+	}
+	return 1;
 }
 
 int Array_CheckIndex(VMArray *array, int index) {
@@ -214,7 +229,7 @@ int Array_GetStringLength(VMArray *array) {
 	} else if (array->dimension == 2) {
 		error("Accessing [n,n] as [n]");
 	} else {
-		assert(array->unk4C == 0);
+		assert(array->is_key_value == 0);
 		int len = 0;
 		for (int i = array->col_lower; i <= array->col_upper; ++i) {
 			if (Array_Get(array, i) == 0) {
@@ -336,7 +351,7 @@ int ArrayHandle_AddString(VMContext *c, int array1, int array2) {
 	VMArray *array = Array_New(c);
 	Array_Dim(array, VAR_TYPE_CHAR, 1, s1_len + s2_len + 1);
 	int x = array->col_lower;
-	assert(a1->unk4C == 0);
+	assert(a1->is_key_value == 0);
 	for (int i = a1->col_lower; i <= a1->col_upper; ++i) {
 		const int val = Array_Get(a1, i);
 		Array_Set(array, x++, val);

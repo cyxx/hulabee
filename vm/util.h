@@ -44,6 +44,13 @@ static inline uint32_t Read32(const uint8_t *buffer, int size, int *pos) {
 	return value;
 }
 
+#ifndef MIN
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#endif
+
+#ifndef MAX
+#define MAX(a,b) ((a)>(b)?(a):(b))
+#endif
 
 #ifdef NDEBUG
 #define debug(x, ...)

@@ -5,38 +5,14 @@
 #include <jpeglib.h>
 #include <jerror.h>
 
-struct decode_img_t {
-	const uint8_t *data;
-	const uint8_t *palette;
-	int w, h;
-};
-
-static void decodeImgHelper(void *userdata, uint32_t *dst, int dst_pitch) {
-	struct decode_img_t *d = (struct decode_img_t *)userdata;
-	const uint8_t *palette = d->palette;
-	uint32_t pal[256];
-	for (int color = 0; color < 256; ++color) {
-		const uint8_t r = palette[color * 4 + 1];
-		const uint8_t g = palette[color * 4 + 2];
-		const uint8_t b = palette[color * 4 + 3];
-		pal[color] = 0xFF000000 | (r << 16) | (g << 8) | b;
-	}
-	const uint8_t *p = d->data;
-	for (int y = 0; y < d->h; ++y) {
-		for (int x = 0; x < d->w; ++x) {
-			dst[x] = pal[*p++];
-		}
-		dst += dst_pitch;
-	}
-}
-
-void LoadImg(const uint8_t *data, int size, Bitmap *bmp) {
-	memset(bmp, 0, sizeof(Bitmap));
-	bmp->texture = -1;
+struct SDL_Surface *LoadImg(const uint8_t *data, int size) {
 	if (memcmp(data, "FFIMGAMI", 8) != 0) {
 		warning("Unsupported IMG signature");
-		return;
+		return 0;
 	}
+	SDL_Color colors[256];
+	int w = 0;
+	int h = 0;
 	int format = 0;
 	const uint8_t *bits = 0;
 	const uint8_t *palette = 0;
@@ -53,11 +29,11 @@ void LoadImg(const uint8_t *data, int size, Bitmap *bmp) {
 				warning("Unhandled IMG HEAD len:%d", len);
 			} else {
 				const int compression = READ_LE_UINT32(data + offset);
-				bmp->w = READ_LE_UINT32(data + offset + 4);
-				bmp->h = READ_LE_UINT32(data + offset + 8);
+				w = READ_LE_UINT32(data + offset + 4);
+				h = READ_LE_UINT32(data + offset + 8);
 				const int b1 = READ_LE_UINT32(data + offset + 12);
 				const int b2 = READ_LE_UINT32(data + offset + 16);
-				debug(DBG_IMG, "IMG header compression:%d w:%d h:%d b1:0x%x b2:0x%x", compression, bmp->w, bmp->h, b1, b2);
+				debug(DBG_IMG, "IMG header compression:%d w:%d h:%d b1:0x%x b2:0x%x", compression, w, h, b1, b2);
 				format = (b1 == 0x80) ? BMP_FMT_PAL256 : BMP_FMT_RGB555;
 			}
 			break;
@@ -66,6 +42,12 @@ void LoadImg(const uint8_t *data, int size, Bitmap *bmp) {
 				warning("Unhandled IMG CLUT len:%d", len);
 			} else {
 				palette = data + offset;
+				for (int i = 0; i < 256; ++i) {
+					colors[i].r = palette[i * 4 + 1];
+					colors[i].g = palette[i * 4 + 2];
+					colors[i].b = palette[i * 4 + 3];
+					colors[i].a = 255;
+				}
 			}
 			break;
 		case 0x44415441: /* DATA */
@@ -80,27 +62,26 @@ void LoadImg(const uint8_t *data, int size, Bitmap *bmp) {
 	switch (format) {
 	case BMP_FMT_PAL256:
 		if (bits && palette) {
-			struct decode_img_t d;
-			memset(&d, 0, sizeof(struct decode_img_t));
-			d.data = bits;
-			d.palette = palette;
-			d.w = bmp->w;
-			d.h = bmp->h;
-			bmp->texture = CreateTexture(bmp->w, bmp->h, SDL_PIXELFORMAT_ARGB8888, decodeImgHelper, &d);
+			SDL_Surface *s = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 8, 0, 0, 0, 0);
+			if (s) {
+				SDL_LockSurface(s);
+				uint8_t *p = s->pixels;
+				for (int y = 0; y < h; ++y) {
+					memcpy(p, bits, w);
+					p += s->pitch;
+					bits += w;
+				}
+				SDL_UnlockSurface(s);
+				SDL_SetPaletteColors(s->format->palette, colors, 0, 256);
+			}
+			return s;
 		}
 		break;
 	default:
 		error("Unhandled IMG format:%d", format);
 		break;
 	}
-}
-
-static void decodeJpgHelper(void *userdata, uint32_t *dst, int dst_pitch) {
-	struct jpeg_decompress_struct *cinfo = (struct jpeg_decompress_struct *)userdata;
-	while (cinfo->output_scanline < cinfo->output_height) {
-		jpeg_read_scanlines(cinfo, (JSAMPARRAY)&dst, 1);
-		dst += dst_pitch;
-	}
+	return 0;
 }
 
 static void error_exit(j_common_ptr cinfo) {
@@ -115,7 +96,7 @@ static void output_message(j_common_ptr cinfo) {
 	debug(DBG_IMG, "libjpeg: %s", buffer);
 }
 
-void LoadJpg(const uint8_t *data, int size, Bitmap *bmp) {
+struct SDL_Surface *LoadJpg(const uint8_t *data, int size) {
 	debug(DBG_IMG, "LoadJpg size:%d", size);
 	struct jpeg_decompress_struct cinfo;
 	memset(&cinfo, 0, sizeof(cinfo));
@@ -132,11 +113,24 @@ void LoadJpg(const uint8_t *data, int size, Bitmap *bmp) {
 	cinfo.out_color_space = JCS_EXT_RGBX;
 
 	jpeg_start_decompress(&cinfo);
-	bmp->w = cinfo.output_width;
-	bmp->h = cinfo.output_height;
-	debug(DBG_IMG, "JPEG w:%d h:%d depth:%d", bmp->w, bmp->h, cinfo.data_precision);
-	bmp->texture = CreateTexture(bmp->w, bmp->h, SDL_PIXELFORMAT_XBGR8888, decodeJpgHelper, &cinfo);
+	const int w = cinfo.output_width;
+	const int h = cinfo.output_height;
+	debug(DBG_IMG, "JPEG w:%d h:%d depth:%d", w, h, cinfo.data_precision);
+
+	SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(SDL_SWSURFACE, w, h, 32, SDL_PIXELFORMAT_XBGR8888);
+	if (s) {
+		SDL_LockSurface(s);
+		uint8_t *dst = s->pixels;
+		const int dst_pitch = s->pitch;
+		while (cinfo.output_scanline < cinfo.output_height) {
+			jpeg_read_scanlines(&cinfo, (JSAMPARRAY)&dst, 1);
+			dst += dst_pitch;
+		}
+		SDL_UnlockSurface(s);
+	}
+
 	jpeg_finish_decompress(&cinfo);
 
 	jpeg_destroy_decompress(&cinfo);
+	return s;
 }

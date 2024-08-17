@@ -223,7 +223,7 @@ static int startMethod(VMContext *c, int class_handle, int obj_handle, int code_
 }
 
 static int callMethod(VMContext *c, VMScript *parent, int class_handle, int obj_handle, int code_num) {
-	if (c->gc_counter == -2) {
+	if (c->gc_counter == -2) { /* AGGRESSIVE */
 		VM_GC(0);
 	}
 	VMScript script;
@@ -447,7 +447,7 @@ int VM_LoadClass(VMContext *context, const char *name, int error_flag) {
 		if (error_flag) {
 			error("Failed to load class '%s'", name);
 		}
-		return -1;
+		return 0;
 	}
 	for (int offset = 0; offset < pb.size; ) {
 		SobData *sob = LoadSob(pb.buffer, pb.size, &offset, filename);

@@ -4,40 +4,68 @@
 
 #include "intern.h"
 
+struct SDL_SUrface;
+
 typedef struct {
 	int bitmap_num;
 	int x_pos;
 	int y_pos;
-} AnimationEntryFrame;
+} AnimationFrameLayer;
 
 typedef struct {
-	int num;
+	int count;
 	uint32_t offset;
+} AnimationFrameTrigger;
+
+typedef struct {
+	int num; /* animation ID */
+	uint32_t offset;
+	int rate;
+	int pos_x, pos_y;
 	int bounds_x1, bounds_y1, bounds_x2, bounds_y2;
 	int frames_count;
-	AnimationEntryFrame *frames;
-} AnimationFrame;
+	int layers_count;
+	AnimationFrameLayer *frames;
+	AnimationFrameTrigger *triggers;
+} CanAnimation;
 
 typedef struct {
 	uint32_t palette_offset;
 	uint32_t bitmap_offset;
-	int texture;
-} AnimationBitmap;
+	struct SDL_Surface *s;
+} CanBitmap;
 
 typedef struct animation_t {
 	const uint8_t *data;
 	int size;
 	int entries_count;
-	AnimationFrame *entries;
+	CanAnimation *entries;
 	int bitmaps_count;
-	AnimationBitmap *bitmaps;
-} Animation;
+	CanBitmap *bitmaps;
+} CanData;
 
-void LoadCan(const uint8_t *data, int size, Animation *anim);
-int FindAnimation(Animation *anim, int num);
-int GetAnimationFramesCount(Animation *anim, int num);
-int GetAnimationFrameBounds(Animation *anim, int num, int *x1, int *y1, int *x2, int *y2);
-int GetAnimationBitmapBounds(Animation *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2);
-int GetCanBitmap(Animation *anim, int num, int frame_num, int *x, int *y);
+typedef struct can_animation_state_t {
+	int current_animation;
+	int current_frame;
+	int loop;
+	int timestamp;
+} CanAnimationState;
+
+void LoadCan(const uint8_t *data, int size, CanData *anim);
+// CanData *LoadCan(const uint8_t *data, int size);
+// void UnloadCan(CanData *);
+
+int FindAnimation(CanData *anim, int num);
+int GetAnimationFramesCount(CanData *anim, int num);
+void GetAnimationPos(CanData *anim, int num, int *x, int *y);
+void GetAnimationBounds(CanData *anim, int num, int *x1, int *y1, int *x2, int *y2);
+void GetCanBitmapBounds(CanData *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2);
+
+void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *, int x, int y, int flags);
+void Can_Reset(CanData *anim, CanAnimationState *state, int timestamp);
+void Can_Update(CanData *anim, CanAnimationState *state, int timestamp);
+bool Can_HasTrigger(CanData *anim, CanAnimationState *state, int frame, int trigger);
+int Can_GetTriggersCount(CanData *anim, CanAnimationState *state, int frame);
+bool Can_Done(CanData *anim, CanAnimationState *state);
 
 #endif /* CAN_H__ */

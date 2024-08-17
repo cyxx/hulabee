@@ -41,13 +41,27 @@ void Pan_InitShuffleTable(const char *name) {
 	}
 }
 
+typedef struct heap_asset_t {
+	uint8_t *buffer;
+	int ref_count;
+} HeapAsset;
+
 #define PAN_FILES_COUNT 64
 
 static PanAsset *_assets;
+static HeapAsset *_heapAssets;
 static int _assetsCount;
 static FILE *_files[PAN_FILES_COUNT];
 static int _filesCount;
 static int _assetsHeapSize;
+
+void Pan_InitHeap(int size) {
+	assert(!_heapAssets);
+	_heapAssets = (HeapAsset *)calloc(_assetsCount, sizeof(HeapAsset));
+	if (!_heapAssets) {
+		error("Failed to allocate _heapAssets");
+	}
+}
 
 static int comparePanAsset(const void *a, const void *b) {
 	const PanAsset *pa = (const PanAsset *)a;
@@ -229,27 +243,55 @@ int Pan_GetAssetType(uint32_t id) {
 	return -1;
 }
 
-static int load(const PanAsset *asset, PanBuffer *pb) {
+static uint8_t *loadFromPan(const PanAsset *asset) {
 	FILE *fp = _files[asset->f];
 	fseek(fp, asset->offset, SEEK_SET);
 	const int size = asset->size;
-	pb->buffer = (uint8_t *)malloc(size);
-	if (!pb->buffer) {
+	uint8_t *buffer = (uint8_t *)malloc(size);
+	if (!buffer) {
 		error("Failed to allocate %d bytes", size);
 	} else {
-		uint8_t *buffer = pb->buffer;
 		const int count = fread(buffer, 1, size, fp);
-		if (count != asset->size) {
+		if (count != size) {
 			error("Failed to read %d bytes, ret %d", size, count);
 		}
 		for (int i = 0; i < count; ++i) {
 			buffer[i] = _shuffle[buffer[i]];
 		}
-		pb->size = size;
-		_assetsHeapSize += size;
-		debug(DBG_PAN, "Loaded assets HeapSize:%d", _assetsHeapSize);
 	}
-	return size;
+	return buffer;
+}
+
+static int load(const PanAsset *asset, PanBuffer *pb) {
+	const int x = asset - _assets;
+	HeapAsset *ha = &_heapAssets[x];
+	if (ha->ref_count == 0) {
+		assert(!ha->buffer);
+		ha->buffer = loadFromPan(asset);
+		_assetsHeapSize += asset->size;
+		debug(DBG_PAN, "Loaded asset:%d heapSize:%d", asset->id, _assetsHeapSize);
+	}
+	if (pb) {
+		pb->buffer = ha->buffer;
+		pb->size = asset->size;
+		pb->index = x;
+	}
+	++ha->ref_count;
+	return asset->size;
+}
+
+static void unload(PanBuffer *pb) {
+	HeapAsset *ha = &_heapAssets[pb->index];
+	assert(ha->ref_count > 0);
+	--ha->ref_count;
+	if (ha->ref_count == 0) {
+		free(ha->buffer);
+		ha->buffer = 0;
+		const PanAsset *asset = &_assets[pb->index];
+		_assetsHeapSize -= asset->size;
+		debug(DBG_PAN, "Unloaded asset:%d heapSize:%d", asset->id, _assetsHeapSize);
+		memset(pb, 0, sizeof(PanBuffer));
+	}
 }
 
 int Pan_LoadAssetById(uint32_t id, PanBuffer *buffer) {
@@ -276,7 +318,5 @@ int Pan_LoadAssetByName(const char *name, PanBuffer *buffer) {
 }
 
 void Pan_UnloadAsset(PanBuffer *buffer) {
-	free(buffer->buffer);
-	_assetsHeapSize -= buffer->size;
-	memset(buffer, 0, sizeof(PanBuffer));
+	unload(buffer);
 }

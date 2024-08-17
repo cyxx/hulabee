@@ -455,7 +455,6 @@ static void op_push_local_array(VMContext *c) {
 			error("Using array reference on non-array variable");
 		} else {
 			VMArray *array = VM_GetArrayFromHandle(c, var->value);
-			assert(array->unk4C == 0);
 			VM_Push(c, Array_Get(array, st.value), type);
 		}
 	}
@@ -850,7 +849,7 @@ static void op_poppush_array(VMContext *c) {
 	Array_Dim(array, type, 1, st.value);
 	for (int i = st.value; i >= 1; --i) {
 		VMVar st2 = VM_Pop2(c);
-		assert(array->struct_size == 0 && array->unk4C == 0);
+		assert(array->struct_size == 0);
 		Array_Set(array, i, st2.value);
 	}
 	VM_Push(c, array->handle, 0x10000 | 12);
@@ -1035,13 +1034,12 @@ static void op_itof(VMContext *c) {
 	debug(DBG_OPCODES, "op_itof");
 	VMVar st = VM_Pop2(c);
 	float f = st.value;
-	VM_Push(c, *(const uint32_t *)&f, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, f);
 }
 
 static void op_ftoi(VMContext *c) {
 	debug(DBG_OPCODES, "op_ftoi");
-	VMVar st = VM_Pop2(c);
-	float f = *(const float *)&st.value;
+	const float f = VM_PopFloat(c);
 	VM_Push(c, (int)f, VAR_TYPE_INT32);
 }
 
@@ -1055,6 +1053,16 @@ static void op_itos(VMContext *c) {
 	VM_Push(c, array->handle, 0x10000 | VAR_TYPE_CHAR);
 }
 
+static void op_ftos(VMContext *c) {
+	debug(DBG_OPCODES, "op_ftos");
+	const float f = VM_PopFloat(c);
+	char buffer[256];
+	snprintf(buffer, sizeof(buffer), "%f", f);
+	VMArray *array = Array_New(c);
+	Array_SetString(array, buffer);
+	VM_Push(c, array->handle, 0x10000 | VAR_TYPE_CHAR);
+}
+
 static void op_stoi(VMContext *c) {
 	debug(DBG_OPCODES, "op_stoi");
 	VMVar st = VM_Pop2(c);
@@ -1062,67 +1070,63 @@ static void op_stoi(VMContext *c) {
 	VM_Push(c, p ? atoi(p) : 0, VAR_TYPE_INT32);
 }
 
+static void op_stof(VMContext *c) {
+	debug(DBG_OPCODES, "op_stof");
+	VMVar st = VM_Pop2(c);
+	const char *p = ArrayHandle_GetString(c, st.value);
+	const float f = p ? atof(p) : 0;
+	VM_PushFloat(c, f);
+}
+
 static void op_add_float(VMContext *c) {
 	debug(DBG_OPCODES, "op_add_float");
-	VMVar st2 = VM_Pop2(c);
-	float f2 = *(const float *)&st2.value;
-	VMVar st1 = VM_Pop2(c);
-	float f1 = *(const float *)&st1.value;
+	float f2 = VM_PopFloat(c);
+	float f1 = VM_PopFloat(c);
 	f1 += f2;
-	VM_Push(c, *(const uint32_t *)&f1, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, f1);
 }
 
 static void op_sub_float(VMContext *c) {
 	debug(DBG_OPCODES, "op_sub_float");
-	VMVar st2 = VM_Pop2(c);
-	float f2 = *(const float *)&st2.value;
-	VMVar st1 = VM_Pop2(c);
-	float f1 = *(const float *)&st1.value;
+	float f2 = VM_PopFloat(c);
+	float f1 = VM_PopFloat(c);
 	f1 -= f2;
-	VM_Push(c, *(const uint32_t *)&f1, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, f1);
 }
 
 static void op_mul_float(VMContext *c) {
 	debug(DBG_OPCODES, "op_mul_float");
-	VMVar st2 = VM_Pop2(c);
-	float f2 = *(const float *)&st2.value;
-	VMVar st1 = VM_Pop2(c);
-	float f1 = *(const float *)&st1.value;
+	float f2 = VM_PopFloat(c);
+	float f1 = VM_PopFloat(c);
 	f1 *= f2;
-	VM_Push(c, *(const uint32_t *)&f1, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, f1);
 }
 
 static void op_div_float(VMContext *c) {
 	debug(DBG_OPCODES, "op_div_float");
-	VMVar st2 = VM_Pop2(c);
-	float f2 = *(const float *)&st2.value;
+	float f2 = VM_PopFloat(c);
 	if (f2 == 0.) {
 		f2 = 1.;
 	}
-	VMVar st1 = VM_Pop2(c);
-	float f1 = *(const float *)&st1.value;
+	float f1 = VM_PopFloat(c);
 	f1 /= f2;
-	VM_Push(c, *(const uint32_t *)&f1, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, f1);
 }
 
 static void op_eq_float(VMContext *c) {
 	debug(DBG_OPCODES, "op_eq_float");
-	VMVar st2 = VM_Pop2(c);
-	float f2 = *(const float *)&st2.value;
-	VMVar st1 = VM_Pop2(c);
-	float f1 = *(const float *)&st1.value;
+	float f2 = VM_PopFloat(c);
+	float f1 = VM_PopFloat(c);
 	float res = (f1 == f2) ? 1 : 0;
-	VM_Push(c, *(const uint32_t *)&res, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, res);
 }
 
 static void op_neq_float(VMContext *c) {
 	debug(DBG_OPCODES, "op_neq_float");
-	VMVar st2 = VM_Pop2(c);
-	float f2 = *(const float *)&st2.value;
-	VMVar st1 = VM_Pop2(c);
-	float f1 = *(const float *)&st1.value;
+	float f2 = VM_PopFloat(c);
+	float f1 = VM_PopFloat(c);
 	float res = (f1 != f2) ? 1 : 0;
-	VM_Push(c, *(const uint32_t *)&res, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, res);
 }
 
 static void op_push_float(VMContext *c) {
@@ -1130,7 +1134,7 @@ static void op_push_float(VMContext *c) {
 	c->script->code_offset += 4;
 	float f = *(const float *)&val;
 	debug(DBG_OPCODES, "op_push_float %f", f);
-	VM_Push(c, val, VAR_TYPE_FLOAT);
+	VM_PushFloat(c, f);
 }
 
 static void op_start_callback(VMContext *c) {
@@ -1218,7 +1222,7 @@ static void op_delete_index(VMContext *c) {
 	}
 	VMArray *array = VM_GetArrayFromHandle(c, st.value);
 	VMVar st2 = VM_Pop2(c);
-	const int ret = Array_DeleteIndex(array, st2.value);
+	const int ret = Array_DeleteIndex(array, st2.value, st2.value);
 	VM_Push(c, ret, VAR_TYPE_INT32);
 }
 
@@ -1279,7 +1283,7 @@ static void op_dim_int(VMContext *c) {
 	} else {
 		VMArray *array = Array_New(c);
 		Array_Dim(array, st.type & 0xFFFF, 1, 0);
-		array->unk4C = 1;
+		array->is_key_value = 1;
 		VM_Push(c, array->handle, st.type);
 	}
 }
@@ -1338,22 +1342,31 @@ static void op_classname_handle(VMContext *c) {
 static void op_format_string(VMContext *c) {
 	debug(DBG_OPCODES, "op_format_string");
 	const int array_handle = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	/* const char *fmt = */ ArrayHandle_GetString(c, array_handle);
+	const char *fmt = ArrayHandle_GetString(c, array_handle);
 	const int count = VM_Pop(c, VAR_TYPE_INT32);
-	assert(count <= 8);
-/*
-	VMVar args[8];
+	assert(count <= 4);
+	VMVar args[4];
 	for (int i = 0; i < count; ++i) {
-		args[count - 1 - i] = VM_Pop2(c);
+		args[i] = VM_Pop2(c);
 	}
-*/
 	char buffer[1024];
-/*
 #define ARG(c, x) (args[x].type == (0x10000 | VAR_TYPE_CHAR) ? ArrayHandle_GetString(c, args[x].value) : args[x].value)
-	snprintf(buffer, sizeof(buffer), fmt, ARG(c, 0), ARG(c, 1), ARG(c, 2), ARG(c, 3), ARG(c, 4), ARG(c, 5), ARG(c, 6), ARG(c, 7));
+	switch (count) {
+	case 1:
+		snprintf(buffer, sizeof(buffer), fmt, ARG(c, 0));
+		break;
+	case 2:
+		snprintf(buffer, sizeof(buffer), fmt, ARG(c, 1), ARG(c, 0));
+		break;
+	case 3:
+		snprintf(buffer, sizeof(buffer), fmt, ARG(c, 2), ARG(c, 1), ARG(c, 0));
+		break;
+	default:
+		error("Unhandled op_format_string args_count:%d", count);
+		break;
+	}
 #undef ARG
-*/
-	buffer[0] = 0;
+	debug(DBG_OPCODES, "op_format_string s:'%s'", buffer);
 	VMArray *array = Array_New(c);
 	Array_SetString(array, buffer);
 	VM_Push(c, array->handle, 0x10000 | VAR_TYPE_CHAR);
@@ -1476,6 +1489,8 @@ void VM_InitOpcodes() {
 	_opcodes[0x78] = &op_ftoi;
 	_opcodes[0x79] = &op_itos;
 	_opcodes[0x7a] = &op_stoi;
+	_opcodes[0x7b] = &op_ftos;
+	_opcodes[0x7c] = &op_stof;
 	_opcodes[0x7d] = &op_add_float;
 	_opcodes[0x7e] = &op_sub_float;
 	_opcodes[0x7f] = &op_mul_float;
