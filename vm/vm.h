@@ -216,6 +216,7 @@ void ArrayHandle_Delete(VMContext *c, int handle);
 // vm_thread
 VMThread *VM_GetThreadFromHandle(VMContext *c, int num);
 VMThread *Thread_New(VMContext *c);
+void Thread_Delete(VMContext *c, VMThread *);
 void Thread_Start(VMThread *);
 void Thread_Stop(VMThread *);
 void Thread_Define(VMThread *, int num, int offset);

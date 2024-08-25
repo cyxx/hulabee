@@ -55,6 +55,8 @@ static FILE *_files[PAN_FILES_COUNT];
 static int _filesCount;
 static int _assetsHeapSize;
 
+static const int _dumpAssets = false;
+
 void Pan_InitHeap(int size) {
 	assert(!_heapAssets);
 	_heapAssets = (HeapAsset *)calloc(_assetsCount, sizeof(HeapAsset));
@@ -270,6 +272,18 @@ static int load(const PanAsset *asset, PanBuffer *pb) {
 		ha->buffer = loadFromPan(asset);
 		_assetsHeapSize += asset->size;
 		debug(DBG_PAN, "Loaded asset:%d heapSize:%d", asset->id, _assetsHeapSize);
+		if (_dumpAssets) {
+			char path[MAXPATHLEN];
+			snprintf(path, sizeof(path), "DUMPS/%d.bin", asset->id);
+			FILE *fp = fopen(path, "wb");
+			if (fp) {
+				const int count = fwrite(ha->buffer, 1, asset->size, fp);
+				if (count != asset->size) {
+					error("Failed to write %d bytes (%d)", asset->size, count);
+				}
+				fclose(fp);
+			}
+		}
 	}
 	if (pb) {
 		pb->buffer = ha->buffer;

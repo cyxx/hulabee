@@ -3,33 +3,48 @@
 #include "host_sdl2.h"
 #include "util.h"
 
-void LoadCan(const uint8_t *data, int size, CanData *anim) {
+CanData *LoadCan(const uint8_t *data, int size) {
+	CanData *anim = (CanData *)malloc(sizeof(CanData));
 	memset(anim, 0, sizeof(CanData));
 	anim->data = data;
 	anim->size = size;
-	/* 'ACAN' */
+	if (READ_LE_UINT32(data) != 0x4143414e) { /* 'ACAN' */
+		warning("Unsupported CAN signature");
+		return 0;
+	}
+	const int version = READ_LE_UINT32(data + 4);
+	if (version != 5) {
+		warning("Unsupported CAN version %d", version);
+		return 0;
+	}
 	anim->entries_count = READ_LE_UINT32(data + 24);
 	int offset = 28;
 	anim->entries = (CanAnimation *)calloc(anim->entries_count, sizeof(CanAnimation));
 	if (!anim->entries) {
 		error("Unable to allocate %d CanAnimation", anim->entries_count);
-		return;
+		return 0;
 	}
 	for (int i = 0; i < anim->entries_count; ++i) {
 		CanAnimation *frame = &anim->entries[i];
 		frame->num = READ_LE_UINT32(data + offset); offset += 4;
 		frame->offset = READ_LE_UINT32(data + offset); offset += 4;
 	}
-	const int palettes_count = READ_LE_UINT32(data + offset); offset += 4;
-	const int palette_offset = READ_LE_UINT32(data + offset); offset += 4;
-	for (int i = 1; i < palettes_count; ++i) {
-		offset += 4;
+	anim->palettes_count = READ_LE_UINT32(data + offset); offset += 4;
+	assert(anim->palettes_count > 0);
+	anim->palettes = (uint32_t *)calloc(anim->palettes_count, sizeof(uint32_t));
+	if (!anim->palettes) {
+		error("Unable to allocate %d palette offsets", anim->palettes_count);
+		return 0;
 	}
-	debug(DBG_CAN, "CAN palettes:%d entries:%d", palettes_count, anim->entries_count);
+	for (int i = 0; i < anim->palettes_count; ++i) {
+		anim->palettes[i] = READ_LE_UINT32(data + offset); offset += 4;
+	}
+	debug(DBG_CAN, "CAN palettes:%d entries:%d", anim->palettes_count, anim->entries_count);
 	anim->bitmaps_count = READ_LE_UINT32(data + offset); offset += 4;
+	assert(anim->bitmaps_count > 0);
 	anim->bitmaps = (CanBitmap *)calloc(anim->bitmaps_count, sizeof(CanBitmap));
 	for (int i = 0; i < anim->bitmaps_count; ++i) {
-		anim->bitmaps[i].palette_offset = palette_offset;
+		anim->bitmaps[i].palette_num = -1;
 		anim->bitmaps[i].bitmap_offset = READ_LE_UINT32(data + offset); offset += 4;
 	}
 	for (int i = 0; i < anim->entries_count; ++i) {
@@ -47,11 +62,11 @@ void LoadCan(const uint8_t *data, int size, CanData *anim) {
 		frame->bounds_y1 = READ_LE_UINT32(data + offset); offset += 4;
 		frame->bounds_x2 = READ_LE_UINT32(data + offset); offset += 4;
 		frame->bounds_y2 = READ_LE_UINT32(data + offset); offset += 4;
-		const int unk24 = READ_LE_UINT32(data + offset); offset += 4;
+		frame->default_palette_num = READ_LE_UINT32(data + offset); offset += 4;
 		const int unk28 = READ_LE_UINT32(data + offset); offset += 4;
 		assert(unk28 == 0);
 		const int unk2c = READ_LE_UINT32(data + offset); offset += 4;
-		debug(DBG_CAN, "CAN entry %d num:%d count:%d bounds:%d,%d,%d,%d unk24:%d", i, frame->num, unk2c, frame->bounds_x1, frame->bounds_y1, frame->bounds_x2, frame->bounds_y2, unk24);
+		debug(DBG_CAN, "CAN entry %d num:%d unk2c:%d bounds:%d,%d,%d,%d", i, frame->num, unk2c, frame->bounds_x1, frame->bounds_y1, frame->bounds_x2, frame->bounds_y2);
 		AnimationFrameTrigger *triggers = (AnimationFrameTrigger *)calloc(frames_count, sizeof(AnimationFrameTrigger));
 		for (int j = 0; j < frames_count; ++j) {
 			const int len = READ_LE_UINT32(data + offset); offset += 4;
@@ -64,13 +79,15 @@ void LoadCan(const uint8_t *data, int size, CanData *anim) {
 		}
 		frame->triggers = triggers;
 		if (layers != 0) {
+			frame->offset_layers_id = offset;
 			for (int j = 0; j < layers; ++j) {
 				const int a = READ_LE_UINT32(data + offset); offset += 4;
-				debug(DBG_CAN, "CAN layer %d unkA %d", j, a);
+				debug(DBG_CAN, "CAN layer %d ID %d", j, a);
 			}
+			frame->offset_layers_palette = offset;
 			for (int j = 0; j < layers; ++j) {
 				const int b = READ_LE_UINT32(data + offset); offset += 4;
-				debug(DBG_CAN, "CAN layer %d unkB %d", j, b);
+				debug(DBG_CAN, "CAN layer %d palette %d", j, b);
 			}
 		}
 		frame->frames = (AnimationFrameLayer *)calloc(frames_count * layers, sizeof(AnimationFrameLayer));
@@ -91,6 +108,18 @@ void LoadCan(const uint8_t *data, int size, CanData *anim) {
 			}
 		}
 	}
+	return anim;
+}
+
+void UnloadCan(CanData *anim) {
+	for (int i = 0; i < anim->entries_count; ++i) {
+		CanAnimation *frame = &anim->entries[i];
+		free(frame->frames);
+	}
+	free(anim->entries);
+	free(anim->palettes);
+	free(anim->bitmaps);
+	free(anim);
 }
 
 int GetAnimationFramesCount(CanData *anim, int num) {
@@ -101,7 +130,7 @@ int GetAnimationFramesCount(CanData *anim, int num) {
 int FindAnimation(CanData *anim, int num) {
 	for (int i = 0; i < anim->entries_count; ++i) {
 		CanAnimation *entry = &anim->entries[i];
-		fprintf(stdout, "Anination #%d ID %d\n", i, entry->num);
+		debug(DBG_CAN, "Animation #%d ID %d", i, entry->num);
 		if (entry->num == num) {
 			return i;
 		}
@@ -181,32 +210,30 @@ static void decodeHelper(const uint8_t *data, const uint8_t *offsets, int w, int
 	}
 }
 
-static void CreateCanSurface(CanData *anim, CanBitmap *b) {
-	uint32_t offset = b->bitmap_offset;
+static void read_palette(CanData *anim, int palette_num, SDL_Color *colors) {
+	const uint8_t *p = anim->data + anim->palettes[palette_num];
+	for (int color = 0; color < 256; ++color, p += 4) {
+		colors[color].b = p[0];
+		colors[color].g = p[1];
+		colors[color].r = p[2];
+		colors[color].a = 0xFF;
+	}
+}
+
+static SDL_Surface *create_surface(CanData *anim, uint32_t offset) {
 	const int w = READ_LE_UINT32(anim->data + offset); offset += 4;
 	if (w == 0) {
-		return;
+		return 0;
 	}
 	const int h = READ_LE_UINT32(anim->data + offset); offset += 4;
 	if (h == 0) {
-		return;
+		return 0;
 	}
 	const int c = READ_LE_UINT32(anim->data + offset); offset += 4;
 	debug(DBG_CAN, "CAN compression 0x%x w:%d h:%d offset:0x%x", c, w, h, offset);
 	if (c != 0x58524c38) { /* XRL8 */
 		error("Unsupported compression:0x%x", c);
-		return;
-	}
-	const uint8_t *palette = anim->data + b->palette_offset;
-	SDL_Color colors[256];
-	for (int color = 0; color < 256; ++color) {
-		const uint8_t b = palette[color * 4];
-		const uint8_t g = palette[color * 4 + 1];
-		const uint8_t r = palette[color * 4 + 2];
-		colors[color].r = r;
-		colors[color].g = g;
-		colors[color].b = b;
-		colors[color].a = 0xFF;
+		return 0;
 	}
 	/* const int size = READ_LE_UINT32(anim->data + offset); */ offset += 4;
 
@@ -215,15 +242,13 @@ static void CreateCanSurface(CanData *anim, CanBitmap *b) {
 		SDL_LockSurface(s);
 		decodeHelper(anim->data + offset, anim->data + offset, w, h, s->pixels, s->pitch);
 		SDL_UnlockSurface(s);
-		SDL_SetPaletteColors(s->format->palette, colors, 0, 256);
 		SDL_SetSurfaceBlendMode(s, SDL_BLENDMODE_NONE);
 		SDL_SetColorKey(s, SDL_TRUE, SDL_MapRGB(s->format, 0x80, 0x00, 0x80));
 	}
-
-	b->s = s;
+	return s;
 }
 
-void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *screen, int x, int y, int flags) {
+void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *target, int x, int y, int flags) {
 	if (!(num >= 0 && num < anim->entries_count)) {
 		return;
 	}
@@ -234,21 +259,32 @@ void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *screen, int
 	}
 	assert(frame >= 0 && frame < entry->frames_count);
 	AnimationFrameLayer *afl = &entry->frames[frame * entry->layers_count];
+	const uint8_t *layer_palette = anim->data + entry->offset_layers_palette;
 	for (int i = 0; i < entry->layers_count; ++i, ++afl) {
+		int palette_num = READ_LE_UINT32(layer_palette); layer_palette += 4;
 		if (afl->bitmap_num != 0) {
 			CanBitmap *b = &anim->bitmaps[afl->bitmap_num];
 			if (!b->s) {
-				CreateCanSurface(anim, b);
+				b->s = create_surface(anim, b->bitmap_offset);
 				if (!b->s) {
 					continue;
 				}
+			}
+			if (palette_num == -1) {
+			       palette_num = entry->default_palette_num;
+			}
+			if (b->palette_num != palette_num) {
+				SDL_Color colors[256];
+				read_palette(anim, palette_num, colors);
+				SDL_SetPaletteColors(b->s->format->palette, colors, 0, 256);
+				b->palette_num = palette_num;
 			}
 			SDL_Rect dst;
 			dst.x = afl->x_pos;
 			dst.y = afl->y_pos;
 			dst.w = b->s->w;
 			dst.h = b->s->h;
-			SDL_BlitSurface(b->s, 0, screen, &dst);
+			SDL_BlitSurface(b->s, 0, target, &dst);
 		}
 	}
 }

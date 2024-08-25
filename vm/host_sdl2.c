@@ -5,60 +5,84 @@
 #include "util.h"
 
 SDL_Window *g_window;
-
-static SDL_Surface *_background;
+SDL_Surface *g_background;
 
 #define IMAGES_COUNT 32
 
 static HostImage _images[IMAGES_COUNT];
 static int _imagesCount;
 
-int Host_CreateImage(SDL_Surface *s) {
+int Host_ImageNew() {
 	const int num = _imagesCount;
 	assert(num < IMAGES_COUNT);
 	HostImage *img = &_images[_imagesCount++];
 	memset(img, 0, sizeof(HostImage));
 	img->handle = num;
-	img->s = s;
 	return num;
 }
 
-HostImage *HostImage_Get(int handle) {
+void Host_ImageCreate(int num, int w, int h, int depth) {
+	HostImage *img = Host_ImageGet(num);
+	assert(!img->s);
+	img->s = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 32, 0xFF, 0xFF00, 0xFF0000, 0xFF000000);
+}
+
+HostImage *Host_ImageGet(int handle) {
 	assert(handle >= 0 && handle < IMAGES_COUNT);
 	HostImage *img = &_images[handle];
 	assert(img->handle == handle);
 	return img;
 }
 
+#define CURSORS_COUNT 32
+
+static HostCursor _cursors[CURSORS_COUNT];
+static int _cursorsCount;
+
+int Host_CursorNew() {
+	const int num  = _cursorsCount;
+	HostCursor *cur = &_cursors[_cursorsCount++];
+	memset(cur, 0, sizeof(HostCursor));
+	cur->handle = num;
+	return num;
+}
+
+void Host_CursorCreate(int num, HostImage *img) {
+	HostCursor *cursor = Host_CursorGet(num);
+	assert(!cursor->c);
+	cursor->c = SDL_CreateColorCursor(img->s, 1, 1);
+}
+
+HostCursor *Host_CursorGet(int handle) {
+	assert(handle >= 0 && handle < CURSORS_COUNT);
+	HostCursor *cur = &_cursors[handle];
+	assert(cur->handle == handle);
+	return cur;
+}
+
+void Host_SetCursor(HostCursor *cursor) {
+	SDL_SetCursor(cursor->c);
+}
+
 #define SPRITES_COUNT 64
 
-typedef struct {
-	CanData animation_data;
-} Sprite;
-
-static HostSprite _sprites2[SPRITES_COUNT];
-static Sprite _sprites[SPRITES_COUNT];
+static HostSprite _sprites[SPRITES_COUNT];
 static int _spritesCount;
 
 int Host_CreateSprite() {
 	const int num = _spritesCount;
 	assert(num < SPRITES_COUNT);
-	Sprite *spr = &_sprites[_spritesCount++];
-	memset(spr, 0, sizeof(Sprite));
-	HostSprite *spr2 = &_sprites2[num];
-	spr2->handle = num;
+	++_spritesCount;
+	HostSprite *spr = &_sprites[num];
+	memset(spr, 0, sizeof(HostSprite));
+	spr->handle = num;
 	return num;
 }
 
 HostSprite *HostSprite_Get(int handle) {
 	assert(handle >= 0 && handle < SPRITES_COUNT);
-	HostSprite *spr = &_sprites2[handle];
+	HostSprite *spr = &_sprites[handle];
 	return spr;
-}
-
-static Sprite *getSprite(int num) {
-	assert(num >= 0 && num < _spritesCount);
-	return &_sprites[num];
 }
 
 int Host_GetSpriteAnim(int spr_num) {
@@ -71,48 +95,50 @@ int Host_GetSpriteAnim(int spr_num) {
 }
 
 void Host_SetSpriteAnim(int spr_num, int anim) {
-	Sprite *spr = getSprite(spr_num);
-	HostSprite *spr2 = &_sprites2[spr_num];
-	GetAnimationPos(&spr->animation_data, anim, &spr2->x, &spr2->y);
-	if (!spr2->animation_state) {
-		spr2->animation_state = (CanAnimationState *)malloc(sizeof(CanAnimationState));
+	HostSprite *spr = &_sprites[spr_num];
+	spr->x = spr->y = 0;
+	if (anim != 0) {
+		const int animation_index = FindAnimation(spr->animation_data, anim);
+		if (animation_index < 0) {
+			warning("Animation ID %d not found", anim);
+			spr->x = spr->y = 0;
+		} else {
+			GetAnimationPos(spr->animation_data, animation_index, &spr->x, &spr->y);
+		}
 	}
-	if (spr2->animation_state) {
-		Can_Reset(&spr->animation_data, spr2->animation_state, SDL_GetTicks());
-		spr2->animation_state->current_animation = anim;
+	if (!spr->animation_state) {
+		spr->animation_state = (CanAnimationState *)malloc(sizeof(CanAnimationState));
+	}
+	if (spr->animation_state) {
+		Can_Reset(spr->animation_data, spr->animation_state, SDL_GetTicks());
+		spr->animation_state->current_animation = anim;
 	}
 }
 
 void Host_SetSpritePos(int spr_num, int x, int y) {
-	HostSprite *spr = &_sprites2[spr_num];
+	HostSprite *spr = &_sprites[spr_num];
 	spr->x = x;
 	spr->y = y;
 }
 
 void Host_SetSpriteImage(int spr_num, SDL_Surface *s) {
-	HostSprite *spr2 = &_sprites2[spr_num];
-	spr2->image = s;
-}
-
-CanData *Host_GetSpriteAnimationData(int spr_num) {
-	Sprite *spr = getSprite(spr_num);
-	return &spr->animation_data;
+	HostSprite *spr = &_sprites[spr_num];
+	spr->image = s;
 }
 
 void Host_GetSpriteSize(int spr_num, int *w, int *h) {
-	Sprite *spr = getSprite(spr_num);
-	HostSprite *spr2 = &_sprites2[spr_num];
-	if (spr2->image) {
-		*w = spr2->image->w;
-		*h = spr2->image->h;
+	HostSprite *spr = &_sprites[spr_num];
+	if (spr->image) {
+		*w = spr->image->w;
+		*h = spr->image->h;
 	} else {
-		HostSprite *spr2 = &_sprites2[spr_num];
+		HostSprite *spr = &_sprites[spr_num];
 		int current_anim = 0;
-		if (spr2->animation_state) {
-			current_anim = spr2->animation_state->current_animation;
+		if (spr->animation_state) {
+			current_anim = spr->animation_state->current_animation;
 		}
 		int x1, y1, x2, y2;
-		GetAnimationBounds(&spr->animation_data, current_anim, &x1, &y1, &x2, &y2);
+		GetAnimationBounds(spr->animation_data, current_anim, &x1, &y1, &x2, &y2);
 		if (w) {
 			*w = x2 - x1 + 1;
 		}
@@ -123,7 +149,10 @@ void Host_GetSpriteSize(int spr_num, int *w, int *h) {
 }
 
 void Host_SetWindowBackground(SDL_Surface *s) {
-	_background = s;
+	if (g_background) {
+		SDL_FreeSurface(g_background);
+	}
+	g_background = SDL_DuplicateSurface(s);
 }
 
 static int _prevButtons, _currentButtons;
@@ -134,6 +163,16 @@ int Host_GetLeftClick() {
 
 int Host_GetRightClick() {
 	return (_prevButtons & SDL_BUTTON_RIGHT) != 0 && (_currentButtons & SDL_BUTTON_RIGHT) == 0;
+}
+
+static int _key;
+
+int Host_GetLastKey() {
+	return _key;
+}
+
+void Host_ResetKey() {
+	_key = 0;
 }
 
 void Host_Init(const char *window_name, int window_w, int window_h) {
@@ -148,49 +187,47 @@ void Host_Fini() {
 
 static void animate_sprites() {
 	for (int i = 0; i < _spritesCount; ++i) {
-		HostSprite *spr2 = &_sprites2[i];
-		if (spr2->animation_state) {
-			Sprite *spr = &_sprites[i];
-			Can_Update(&spr->animation_data, spr2->animation_state, SDL_GetTicks());
+		HostSprite *spr = &_sprites[i];
+		if (spr->animation_state) {
+			Can_Update(spr->animation_data, spr->animation_state, SDL_GetTicks());
 		}
 	}
 }
 
 static int compareSpriteOrder(const void *a, const void *b) {
 	const HostSprite *spr1 = (const HostSprite *)a;
-	const HostSprite *spr2 = (const HostSprite *)b;
-	return spr1->order - spr2->order;
+	const HostSprite *spr = (const HostSprite *)b;
+	return spr1->order - spr->order;
 }
 
 static void draw() {
 	SDL_Surface *screen = SDL_GetWindowSurface(g_window);
 	SDL_FillRect(screen, 0, SDL_MapRGB(screen->format, 0x00, 0x00, 0x00));
-	if (_background) {
-		SDL_BlitSurface(_background, 0, screen, 0);
+	if (g_background) {
+		SDL_BlitSurface(g_background, 0, screen, 0);
 	}
 	HostSprite sprites[SPRITES_COUNT];
-	memcpy(sprites, _sprites2, _spritesCount * sizeof(HostSprite));
+	memcpy(sprites, _sprites, _spritesCount * sizeof(HostSprite));
 	qsort(sprites, _spritesCount, sizeof(HostSprite), compareSpriteOrder);
 	for (int i = 0; i < _spritesCount; ++i) {
-		HostSprite *spr2 = &sprites[i];
-		Sprite *spr = &_sprites[spr2->handle];
-		if (!spr2->hidden) {
-			SDL_Surface *s = spr2->image;
+		HostSprite *spr = &sprites[i];
+		if (!spr->hidden) {
+			SDL_Surface *s = spr->image;
 			if (s) {
 				SDL_Rect dst;
-				dst.x = spr2->x;
-				dst.y = spr2->y;
+				dst.x = spr->x;
+				dst.y = spr->y;
 				dst.w = s->w;
 				dst.h = s->h;
 				SDL_BlitSurface(s, 0, screen, &dst);
-			} else {
+			} else if (spr->animation_data) {
 				int current_anim = 0;
 				int current_frame = 0;
-				if (spr2->animation_state) {
-					current_anim = spr2->animation_state->current_animation;
-					current_frame = spr2->animation_state->current_frame;
+				if (spr->animation_state) {
+					current_anim = spr->animation_state->current_animation;
+					current_frame = spr->animation_state->current_frame;
 				}
-				Can_Draw(&spr->animation_data, current_anim, current_frame, screen, spr2->x, spr2->y, 0 /* flags */);
+				Can_Draw(spr->animation_data, current_anim, current_frame, screen, spr->x, spr->y, 0 /* flags */);
 			}
 		}
 	}
@@ -205,6 +242,9 @@ void Host_MainLoop(int interval, void (*update)(void *), void *userdata) {
 			switch (ev.type) {
 			case SDL_QUIT:
 				quit = 1;
+				break;
+			case SDL_KEYDOWN:
+				_key = ev.key.keysym.sym;
 				break;
 			}
 		}

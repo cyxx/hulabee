@@ -25,20 +25,24 @@ static void fn_sprite_image(VMContext *c) {
 	const int sprite_num = VM_PopInt32(c);
 	const int type = Pan_GetAssetType(asset);
 	debug(DBG_SYSCALLS, "Sprite:image sprite:%d asset:%d type:%d", sprite_num, asset, type);
+	HostSprite *spr = HostSprite_Get(sprite_num);
 	PanBuffer pb;
 	if (Pan_LoadAssetById(asset, &pb)) {
 		if (type == PAN_ASSET_TYPE_CAN) {
-			CanData *data = Host_GetSpriteAnimationData(sprite_num);
-			LoadCan(pb.buffer, pb.size, data);
-			Host_SetSpriteAnim(sprite_num, 0);
+			CanData *data = LoadCan(pb.buffer, pb.size);
+			if (data) {
+				spr->animation_data = data;
+				Host_SetSpriteAnim(sprite_num, 0); /* todo: should be first animation ID, not 0 */
+			}
 		} else if (type == PAN_ASSET_TYPE_IMG) {
 			SDL_Surface *s = LoadImg(pb.buffer, pb.size);
-			Host_SetSpriteImage(sprite_num, s);
+			if (s) {
+				Host_SetSpriteImage(sprite_num, s);
+			}
 			Pan_UnloadAsset(&pb);
 		} else {
 			error("Unsupported type %d for Sprite:Image", type);
 		}
-		HostSprite *spr = HostSprite_Get(sprite_num);
 		spr->asset = asset;
 	} else {
 		error("Failed to load asset:%d type:%d for Sprite:image", asset, type);
@@ -130,7 +134,8 @@ static void fn_sprite_rate(VMContext *c) {
 static void fn_sprite_num_frames(VMContext *c) {
 	const int sprite_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Sprite:numFrames sprite:%d", sprite_num);
-	int count = GetAnimationFramesCount(Host_GetSpriteAnimationData(sprite_num), Host_GetSpriteAnim(sprite_num));
+	HostSprite *spr = HostSprite_Get(sprite_num);
+	int count = GetAnimationFramesCount(spr->animation_data, Host_GetSpriteAnim(sprite_num));
 	VM_Push(c, count, VAR_TYPE_INT32);
 }
 
@@ -173,7 +178,8 @@ static void fn_sprite_animation(VMContext *c) {
 	int num = VM_PopInt32(c);
 	int sprite_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Sprite:animation sprite:%d animation:%d", sprite_num, num);
-	const int animation_index = FindAnimation(Host_GetSpriteAnimationData(sprite_num), num);
+	HostSprite *spr = HostSprite_Get(sprite_num);
+	const int animation_index = FindAnimation(spr->animation_data, num);
 	Host_SetSpriteAnim(sprite_num, animation_index);
 }
 
@@ -194,7 +200,8 @@ static void fn_sprite_animation_bounds(VMContext *c) {
 	int sprite_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Sprite:animationBounds sprite:%d animation:%d", sprite_num, anim);
 	int x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-	GetAnimationBounds(Host_GetSpriteAnimationData(sprite_num), anim, &x1, &y1, &x2, &y2);
+	HostSprite *spr = HostSprite_Get(sprite_num);
+	GetAnimationBounds(spr->animation_data, anim, &x1, &y1, &x2, &y2);
 	debug(DBG_SYSCALLS, "Sprite:animationBounds [%d,%d,%d,%d]", x1, y1, x2, y2);
 	VM_Push(c, x1, VAR_TYPE_INT32);
 	VM_Push(c, y1, VAR_TYPE_INT32);
@@ -218,7 +225,7 @@ static void fn_sprite_done(VMContext *c) {
 	HostSprite *spr = HostSprite_Get(sprite_num);
 	int done = 1;
 	if (spr->animation_state) {
-		done = Can_Done(Host_GetSpriteAnimationData(sprite_num), spr->animation_state);
+		done = Can_Done(spr->animation_data, spr->animation_state);
 	}
 	VM_Push(c, done, VAR_TYPE_INT32);
 }
@@ -230,8 +237,9 @@ static void fn_sprite_frame_bounds(VMContext *c) {
 	int frame = VM_PopInt32(c);
 	int sprite_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Sprite:frameBounds sprite:%d frame:%d", sprite_num, frame);
+	HostSprite *spr = HostSprite_Get(sprite_num);
 	int x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-	GetCanBitmapBounds(Host_GetSpriteAnimationData(sprite_num), Host_GetSpriteAnim(sprite_num), frame, &x1, &y1, &x2, &y2);
+	GetCanBitmapBounds(spr->animation_data, Host_GetSpriteAnim(sprite_num), frame, &x1, &y1, &x2, &y2);
 	debug(DBG_SYSCALLS, "Sprite:frameBounds [%d,%d,%d,%d]", x1, y1, x2 - x1, y2 - y1);
 	VM_Push(c, x1, VAR_TYPE_INT32);
 	VM_Push(c, y1, VAR_TYPE_INT32);
@@ -250,7 +258,7 @@ static void fn_sprite_trigger(VMContext *c) {
 		if (frame == 0) {
 			frame = spr->animation_state->current_frame;
 		}
-		if (Can_HasTrigger(Host_GetSpriteAnimationData(sprite_num), spr->animation_state, frame, trigger)) {
+		if (Can_HasTrigger(spr->animation_data, spr->animation_state, frame, trigger)) {
 			res = 1;
 		}
 	}
@@ -267,7 +275,7 @@ static void fn_sprite_triggers(VMContext *c) {
 		if (frame == 0) {
 			frame = spr->animation_state->current_frame;
 		}
-		if (Can_GetTriggersCount(Host_GetSpriteAnimationData(sprite_num), spr->animation_state, frame) != 0) {
+		if (Can_GetTriggersCount(spr->animation_data, spr->animation_state, frame) != 0) {
 			res = 1;
 		}
 	}
@@ -318,12 +326,23 @@ static void fn_sprite_adjust_color(VMContext *c) {
 	warning("Unimplemented Sprite:adjustColor");
 }
 
+static void fn_sprite_get_animation(VMContext *c) {
+	const int sprite_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Sprite:getAnimation sprite:%d", sprite_num);
+	HostSprite *spr = HostSprite_Get(sprite_num);
+	int anim = 0;
+	if (spr->animation_state) {
+		anim = spr->animation_state->current_animation;
+	}
+	VM_Push(c, spr->animation_data->entries[anim].num, VAR_TYPE_INT32);
+}
+
 static void fn_sprite_has_animation(VMContext *c) {
 	const int animation = VM_PopInt32(c);
 	const int sprite_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Sprite:hasAnimation sprite:%d num:%d", sprite_num, animation);
-	CanData *data = Host_GetSpriteAnimationData(sprite_num);
-	VM_Push(c, !(FindAnimation(data, animation) < 0), VAR_TYPE_INT32);
+	HostSprite *spr = HostSprite_Get(sprite_num);
+	VM_Push(c, !(FindAnimation(spr->animation_data, animation) < 0), VAR_TYPE_INT32);
 }
 
 static void fn_sprite_hit(VMContext *c) {
@@ -337,7 +356,7 @@ static void fn_sprite_hit(VMContext *c) {
 		anim = spr->animation_state->current_animation;
 	}
 	int x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-	GetAnimationBounds(Host_GetSpriteAnimationData(sprite_num), anim, &x1, &y1, &x2, &y2);
+	GetAnimationBounds(spr->animation_data, anim, &x1, &y1, &x2, &y2);
 	const int res = (y >= y1 && y <= y2) && (x >= x1 && x <= x2);
 	VM_Push(c, res, VAR_TYPE_INT32);
 }
@@ -386,6 +405,7 @@ const VMSyscall _syscalls_sprite[] = {
 	{ 30060, fn_sprite_rotate },
 	{ 30061, fn_sprite_scale },
 	{ 30063, fn_sprite_adjust_color },
+	{ 30065, fn_sprite_get_animation },
 	{ 30067, fn_sprite_has_animation },
 	{ 30069, fn_sprite_hit },
 	{ 30075, fn_sprite_blend_layer },

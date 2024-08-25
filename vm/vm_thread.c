@@ -21,6 +21,11 @@ VMThread *Thread_New(VMContext *c) {
 	return thread;
 }
 
+void Thread_Delete(VMContext *c, VMThread *thread) {
+	/* todo */
+	warning("Thread_Delete unimplemented");
+}
+
 void Thread_Start(VMThread *thread) {
 	thread->id = thread->handle;
 	thread->state = 1;

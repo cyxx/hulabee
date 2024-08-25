@@ -28,8 +28,8 @@ static void fn_asset_load_assets_def(VMContext *c) {
 	if (num) {
 		s = ArrayHandle_GetString(c, num);
 	}
+	debug(DBG_SYSCALLS, "Asset:loadAssetsDef '%s'", s);
 	VM_Push(c, 0, VAR_TYPE_INT32);
-	warning("Unimplemented Asset:loadAssetsDef '%s'", s);
 }
 
 static void fn_asset_use_pan_files(VMContext *c) {
@@ -42,10 +42,16 @@ static void fn_asset_preload(VMContext *c) {
 	Pan_LoadAssetById(asset, 0);
 }
 
+static void fn_asset_unload(VMContext *c) {
+	const int asset = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Asset:unload asset:%d", asset);
+	warning("Unimplemented Asset:unload");
+}
+
 static void fn_asset_heap_size(VMContext *c) {
-	VM_PopInt32(c);
-	VM_PopInt32(c);
-	warning("Unimplemented Asset:heapSize");
+	const int b = VM_PopInt32(c);
+	const int a = VM_PopInt32(c);
+	warning("Unimplemented Asset:heapSize %d %d", a, b);
 }
 
 static void fn_asset_get_data_content(VMContext *c) {
@@ -114,6 +120,7 @@ const VMSyscall _syscalls_asset[] = {
 	{ 160004, fn_asset_use_pan_files },
 	{ 160005, fn_asset_preload },
 	{ 160008, fn_asset_heap_size },
+	{ 160009, fn_asset_unload },
 	{ 160010, fn_asset_get_data_content },
 	{ 160014, fn_asset_read_ini },
 	{ -1, 0 }

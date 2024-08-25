@@ -3,20 +3,22 @@
 #include "util.h"
 #include "vm.h"
 
-static int _cursorCurrentHandle = 1;
-
 static void fn_input_new_cursor(VMContext *c) {
+	const int b = VM_PopInt32(c);
+	const int a = VM_PopInt32(c);
 	const int image_num = VM_PopInt32(c);
-	int b = VM_PopInt32(c);
-	int a = VM_PopInt32(c);
-	warning("Unimplemented fn_input_new_cursor %d %d image:%d", a, b, image_num);
-	VM_Push(c, _cursorCurrentHandle, VAR_TYPE_INT32);
-	++_cursorCurrentHandle;
+	debug(DBG_SYSCALLS, "Input:newCursor %d %d image:%d", a, b, image_num);
+	int cursor_num = Host_CursorNew();
+	HostImage *img = Host_ImageGet(image_num);
+	Host_CursorCreate(cursor_num, img);
+	VM_Push(c, cursor_num, VAR_TYPE_INT32);
 }
 
 static void fn_input_set_cursor(VMContext *c) {
 	const int cursor_num = VM_PopInt32(c);
-	warning("Unimplemented fn_input_set_cursor cursor:%d", cursor_num);
+	debug(DBG_SYSCALLS, "Input:setCursor cursor:%d", cursor_num);
+	HostCursor *cursor = Host_CursorGet(cursor_num);
+	Host_SetCursor(cursor);
 }
 
 static void fn_input_get_shift_key(VMContext *c) {

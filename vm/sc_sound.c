@@ -41,6 +41,18 @@ static void fn_sound_set_volume(VMContext *c) {
 	warning("Unimplemented fn_sound_setVolume");
 }
 
+static void fn_sound_set_pan(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented fn_sound_set_pan");
+}
+
+static void fn_sound_set_rate(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented fn_sound_set_rate");
+}
+
 static void fn_sound_play_resource(VMContext *c) {
 	const int asset = VM_PopInt32(c);
 	VM_PopInt32(c);
@@ -86,6 +98,8 @@ const VMSyscall _syscalls_sound[] = {
 	{ 80007, fn_sound_stop },
 	{ 80008, fn_sound_status },
 	{ 80009, fn_sound_set_volume },
+	{ 80011, fn_sound_set_pan },
+	{ 80013, fn_sound_set_rate },
 	{ 80019, fn_sound_play_resource },
 	{ 80022, fn_sound_halt },
 	{ 80023, fn_sound_stop_all },

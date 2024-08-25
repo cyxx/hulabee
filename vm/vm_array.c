@@ -352,11 +352,11 @@ int ArrayHandle_AddString(VMContext *c, int array1, int array2) {
 	Array_Dim(array, VAR_TYPE_CHAR, 1, s1_len + s2_len + 1);
 	int x = array->col_lower;
 	assert(a1->is_key_value == 0);
-	for (int i = a1->col_lower; i <= a1->col_upper; ++i) {
+	for (int i = a1->col_lower; i < a1->col_upper; ++i) {
 		const int val = Array_Get(a1, i);
 		Array_Set(array, x++, val);
 	}
-	for (int i = a2->col_lower; i <= a2->col_upper; ++i) {
+	for (int i = a2->col_lower; i < a2->col_upper; ++i) {
 		const int val = Array_Get(a2, i);
 		Array_Set(array, x++, val);
 	}

@@ -23,23 +23,28 @@ typedef struct {
 	int rate;
 	int pos_x, pos_y;
 	int bounds_x1, bounds_y1, bounds_x2, bounds_y2;
+	int default_palette_num;
 	int frames_count;
 	int layers_count;
 	AnimationFrameLayer *frames;
 	AnimationFrameTrigger *triggers;
+	uint32_t offset_layers_id;
+	uint32_t offset_layers_palette;
 } CanAnimation;
 
 typedef struct {
-	uint32_t palette_offset;
 	uint32_t bitmap_offset;
+	int palette_num;
 	struct SDL_Surface *s;
 } CanBitmap;
 
-typedef struct animation_t {
+typedef struct can_animation_data_t {
 	const uint8_t *data;
 	int size;
 	int entries_count;
 	CanAnimation *entries;
+	int palettes_count;
+	uint32_t *palettes;
 	int bitmaps_count;
 	CanBitmap *bitmaps;
 } CanData;
@@ -51,9 +56,8 @@ typedef struct can_animation_state_t {
 	int timestamp;
 } CanAnimationState;
 
-void LoadCan(const uint8_t *data, int size, CanData *anim);
-// CanData *LoadCan(const uint8_t *data, int size);
-// void UnloadCan(CanData *);
+CanData *LoadCan(const uint8_t *data, int size);
+void UnloadCan(CanData *);
 
 int FindAnimation(CanData *anim, int num);
 int GetAnimationFramesCount(CanData *anim, int num);

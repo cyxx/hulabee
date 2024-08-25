@@ -218,7 +218,7 @@ static int startMethod(VMContext *c, int class_handle, int obj_handle, int code_
 	}
 
 	VM_RemoveThread(c, thread);
-        // destroyScriptThread(thread);
+	Thread_Delete(c, thread);
 	return 0;
 }
 
@@ -506,6 +506,9 @@ void VM_RunThreads(VMContext *context) {
 		if (thread->state == 3) {
 		} else if (thread->break_counter != 0) {
 			--thread->break_counter;
+		} else if (thread->break_time != 0) {
+			/* todo */
+			warning("VM_RunThreads break_time not implemented");
 		} else {
 			if (context->sp != 0) {
 				warning("Stack not empty between threads");
@@ -515,7 +518,7 @@ void VM_RunThreads(VMContext *context) {
 			if (r != 4 && thread->state != 3) {
 			} else {
 				VM_RemoveThread(context, thread);
-				// destroyScriptThread(thread);
+				Thread_Delete(context, thread);
 			}
 		}
 		thread = next;
@@ -916,6 +919,7 @@ void VM_DeleteObject(VMContext *c, VMObject *obj, int call_delete) {
 				VM_InvokeMethod(c, sob, num, obj->handle, 0, 0, 0);
 			} else {
 				/* todo */
+				warning("VM_DeleteObject NULL c->script not handled");
 			}
 		}
 		stopThreadByObject(c, obj->handle, 0);

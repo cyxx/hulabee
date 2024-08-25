@@ -2,6 +2,13 @@
 #include "util.h"
 #include "vm.h"
 
+static void fn_file_open(VMContext *c) {
+	const int a = VM_PopInt32(c);
+	const char *name = VM_PopString(c);
+	warning("Unimplemented file:open '%s' %d", name, a);
+	VM_Push(c, 0, VAR_TYPE_INT32);
+}
+
 static void fn_file_exists(VMContext *c) {
 	const char *name = VM_PopString(c);
 	warning("Unimplemented file:exists '%s'", name);
@@ -24,6 +31,7 @@ static void fn_file_create_directory(VMContext *c) {
 }
 
 const VMSyscall _syscalls_file[] = {
+	{ 20001, fn_file_open },
 	{ 20006, fn_file_exists },
 	{ 20017, fn_file_get_list },
 	{ 20021, fn_file_create_directory },

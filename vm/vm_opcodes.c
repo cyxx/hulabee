@@ -1203,6 +1203,12 @@ static void op_delete_array(VMContext *c) {
 	ArrayHandle_Delete(c, st.value);
 }
 
+static void op_setthreadid(VMContext *c) {
+	debug(DBG_OPCODES, "op_setthreadid");
+	const int id = VM_PopInt32(c);
+	c->script->thread->id = id;
+}
+
 static void op_setthreadorder(VMContext *c) {
 	debug(DBG_OPCODES, "op_setthreadorder");
 	const int order = VM_PopInt32(c);
@@ -1504,6 +1510,7 @@ void VM_InitOpcodes() {
 	_opcodes[0x92] = &op_array_find;
 	_opcodes[0x93] = &op_breakmany;
 	_opcodes[0x94] = &op_breaktime;
+	_opcodes[0x95] = &op_setthreadid;
 	_opcodes[0x96] = &op_setthreadorder;
 	_opcodes[0x97] = &op_call_callback;
 	_opcodes[0xa5] = &op_delete_index;
