@@ -7,6 +7,18 @@ VMContext *VM_NewContext() {
 	VMContext *c = (VMContext *)calloc(1, sizeof(VMContext));
 	if (c) {
 		c->classes_count = 1; /* null class 0 */
+		c->arrays_next_free = 1;
+		for (int i = 1; i < VMARRAYS_COUNT - 1; ++i) {
+			c->arrays[i].next_free = i + 1;
+		}
+		c->objects_next_free = 1;
+		for (int i = 1; i < VMOBJECTS_COUNT - 1; ++i) {
+			c->objects[i].next_free = i + 1;
+		}
+		c->threads_next_free = 1;
+		for (int i = 1; i < VMTHREADS_COUNT - 1; ++i) {
+			c->threads[i].next_free = i + 1;
+		}
 		c->gameID = -1; /* to handle bytecode and syscalls differences */
 	}
 	return c;
@@ -213,7 +225,7 @@ static int startMethod(VMContext *c, int class_handle, int obj_handle, int code_
 
 	thread->unk1C = 1;
 	const int ret = executeMethod(c, script, thread, 1);
-	if (ret != 4 && thread->state != 3) {
+	if (ret != SCRIPT_STATE_ENDED && thread->state != SCRIPT_STATE_DEAD) {
 		return thread->handle;
 	}
 
@@ -498,30 +510,40 @@ void VM_RunThreads(VMContext *context) {
 		thread->unk1C = 0;
 		thread = thread->prev;
 	}
-	/* todo */
 	thread = context->threads_head;
 	while (thread) {
-		VMThread *next = thread->next;
+		VMThread *next_thread = thread->next;
 		debug(DBG_VM, "Thread id:%d state:%d", thread->id, thread->state);
-		if (thread->state == 3) {
-		} else if (thread->break_counter != 0) {
-			--thread->break_counter;
-		} else if (thread->break_time != 0) {
-			/* todo */
-			warning("VM_RunThreads break_time not implemented");
-		} else {
-			if (context->sp != 0) {
-				warning("Stack not empty between threads");
-				context->sp = 0;
-			}
-			const int r = executeMethod(context, thread->script, thread, 1);
-			if (r != 4 && thread->state != 3) {
-			} else {
-				VM_RemoveThread(context, thread);
-				Thread_Delete(context, thread);
-			}
+		if (thread->state == SCRIPT_STATE_DEAD) {
+			VM_RemoveThread(context, thread);
+			Thread_Delete(context, thread);
+			goto next;
 		}
-		thread = next;
+		if (thread->unk1C != 0) {
+			goto next;
+		}
+		if (thread->break_counter != 0) {
+			--thread->break_counter;
+			goto next;
+		}
+		if (thread->break_time != 0) {
+			if (thread->break_time > (*context->get_timer)()) {
+				goto next;
+			}
+			thread->break_time = 0;
+		}
+		if (context->sp != 0) {
+			warning("Stack not empty between threads");
+			context->sp = 0;
+		}
+		const int r = executeMethod(context, thread->script, thread, 1);
+		if (r != SCRIPT_STATE_ENDED && thread->state != SCRIPT_STATE_DEAD) {
+		} else {
+			VM_RemoveThread(context, thread);
+			Thread_Delete(context, thread);
+		}
+next:
+		thread = next_thread;
 	}
 }
 
@@ -874,7 +896,7 @@ static void stopThreadByObject(VMContext *c, int obj_handle, int thread_num) {
 				thread->labels[0] = 0;
 				executeMethod(c, script, thread, 1);
 			}
-			thread->state = 3;
+			thread->state = SCRIPT_STATE_DEAD;
 		}
 	}
 }
@@ -893,7 +915,7 @@ void VM_StopThread(VMContext *c, int num, int handle) {
 						thread->labels[0] = 0;
 						executeMethod(c, script, thread, 1);
 					}
-					thread->state = 3;
+					thread->state = SCRIPT_STATE_DEAD;
 				}
 			}
 		}

@@ -45,7 +45,7 @@ void VM_Push(VMContext *c, int value, int type) {
 	var->value = value;
 	var->type  = type;
 	++c->sp;
-	debug(DBG_STACK, "push sp:0x%x", c->sp);
+	debug(DBG_STACK, "push sp:0x%x value:%d type:%d", c->sp, value, type);
 	if (c->sp >= VMSTACK_SIZE) {
 		error("Stack overflow");
 	}

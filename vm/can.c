@@ -158,7 +158,6 @@ void GetAnimationBounds(CanData *anim, int num, int *x1, int *y1, int *x2, int *
 void GetCanBitmapBounds(CanData *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2) {
 	assert(num >= 0 && num < anim->entries_count);
 	CanAnimation *entry = &anim->entries[num];
-	--frame;
 	assert(frame >= 0 && frame < entry->frames_count);
 	AnimationFrameLayer *afl = &entry->frames[frame * entry->layers_count];
 	*x1 = *y1 = INT32_MAX;
@@ -280,8 +279,8 @@ void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *target, int
 				b->palette_num = palette_num;
 			}
 			SDL_Rect dst;
-			dst.x = afl->x_pos;
-			dst.y = afl->y_pos;
+			dst.x = x ? (x + afl->x_pos - entry->pos_x) : afl->x_pos;
+			dst.y = y ? (y + afl->y_pos - entry->pos_y) : afl->y_pos;
 			dst.w = b->s->w;
 			dst.h = b->s->h;
 			SDL_BlitSurface(b->s, 0, target, &dst);
@@ -294,12 +293,12 @@ void Can_Reset(CanData *anim, CanAnimationState *state, int timestamp) {
 	state->timestamp = timestamp;
 }
 
-void Can_Update(CanData *anim, CanAnimationState *state, int timestamp) {
+void Can_Update(CanData *anim, CanAnimationState *state, int timestamp, float rate) {
 	CanAnimation *entry = &anim->entries[state->current_animation];
-	if (entry->rate == 0) {
+	if (entry->rate == 0 || rate == 0.) {
 		return;
 	}
-	const int count = (timestamp - state->timestamp) / entry->rate;
+	const int count = (timestamp - state->timestamp) / (entry->rate * rate);
 	if (count == 0) {
 		return;
 	}
@@ -336,6 +335,6 @@ int Can_GetTriggersCount(CanData *anim, CanAnimationState *state, int frame) {
 
 bool Can_Done(CanData *anim, CanAnimationState *state) {
 	CanAnimation *entry = &anim->entries[state->current_animation];
-	debug(DBG_CAN, "Can_Done loop:%d frame %d/%d", state->loop, state->current_frame, entry->frames_count);
+	debug(DBG_CAN, "Can_Done loop:%d rate:%d frame %d/%d", state->loop, entry->rate, state->current_frame, entry->frames_count);
 	return state->loop == 0 && state->current_frame == (entry->frames_count - 1);
 }

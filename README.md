@@ -15,7 +15,7 @@ name="Hulabee.ESauce.Engine"
 
 This repository contains:
 
-* a rewrite of the engine using SDL2
+* a [rewrite of the engine](vm/README.md) using SDL2
 * a version of [whisk.dll](https://www.dropbox.com/s/pey60eh8rnqftnm/whisk.dll?dl=0) to enable VM opcodes tracing
 * scripts to extract and convert assets from `.pan` and `.gg` files
 

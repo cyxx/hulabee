@@ -5,11 +5,11 @@
 #include "intern.h"
 #include "sob.h"
 
-#define SYSCALLS_COUNT   256
+#define SYSCALLS_COUNT   192
 #define VMCLASSES_COUNT 1024
-#define VMARRAYS_COUNT   512
+#define VMARRAYS_COUNT  1024
 #define VMOBJECTS_COUNT 1024
-#define VMTHREADS_COUNT  128
+#define VMTHREADS_COUNT   64
 #define VMSTACK_SIZE    1024
 
 enum {
@@ -34,6 +34,7 @@ enum {
 	SCRIPT_STATE_SUSPEND = 2,
 	SCRIPT_STATE_DEAD    = 3,
 	SCRIPT_STATE_ENDED   = 4,
+	// SCRIPT_STATE_BREAK = 5
 };
 
 struct SobData;
@@ -63,6 +64,7 @@ struct vmarray_key_value_t {
 
 typedef struct {
 	uint32_t handle;
+	uint16_t next_free;
 	int type;
 	int elem_size;
 	uint8_t *data;
@@ -83,6 +85,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t handle;
+	uint16_t next_free;
 	uint32_t class_handle;
 	int members_count;
 	VMVar *members;
@@ -92,6 +95,7 @@ struct vmscript_t;
 
 typedef struct vmthread_t {
 	uint32_t handle;
+	uint16_t next_free;
 	int id;
 	int order;
 	int unkC;
@@ -125,11 +129,11 @@ typedef struct vmcontext_t {
 	VMSyscall syscalls[SYSCALLS_COUNT];
 	int classes_count;
 	VMClass classes[VMCLASSES_COUNT];
-	int arrays_count;
+	int arrays_next_free;
 	VMArray arrays[VMARRAYS_COUNT];
-	int objects_count;
+	int objects_next_free;
 	VMObject objects[VMOBJECTS_COUNT];
-	int threads_count;
+	int threads_next_free;
 	VMThread threads[VMTHREADS_COUNT];
 	VMVar stack[VMSTACK_SIZE];
 	int sp;
@@ -140,6 +144,7 @@ typedef struct vmcontext_t {
 	int frame_counter;
 	int method_call_depth;
 	VMThread *threads_head, *threads_tail;
+	uint32_t (*get_timer)();
 } VMContext;
 
 VMContext *VM_NewContext();
@@ -201,6 +206,7 @@ int Array_Find(VMArray *array, int value);
 int Array_DeleteIndex(VMArray *array, int start, int end);
 int Array_CheckIndex(VMArray *array, int offset);
 void Array_InsertUpper(VMArray *array, int value);
+int Array_DeleteUpper(VMArray *array);
 int Array_GetStringLength(VMArray *array);
 int Array_Copy1(VMContext *c, VMArray *array);
 int Array_Range1(VMContext *c, VMArray *array, int start, int end);

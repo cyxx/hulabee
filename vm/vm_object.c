@@ -4,8 +4,8 @@
 
 VMObject *VM_GetObjectFromHandle(VMContext *c, int num) {
 	const int x = num - BASE_HANDLE_OBJECT;
-	if (x < 0 || x >= c->objects_count) {
-		error("Object handle %d out of range (%d..%d)", num, BASE_HANDLE_OBJECT, BASE_HANDLE_OBJECT + c->objects_count);
+	if (x < 0 || x >= VMOBJECTS_COUNT) {
+		error("Object handle %d out of range (%d..%d)", num, BASE_HANDLE_OBJECT, BASE_HANDLE_OBJECT + VMOBJECTS_COUNT);
 	}
 	VMObject *obj = &c->objects[x];
 	assert(obj->handle == num);
@@ -13,12 +13,13 @@ VMObject *VM_GetObjectFromHandle(VMContext *c, int num) {
 }
 
 VMObject *Object_New(VMContext *c) {
-	assert(c->objects_count < VMOBJECTS_COUNT);
-	VMObject *object = &c->objects[c->objects_count];
-	memset(object, 0, sizeof(VMObject));
-	object->handle = BASE_HANDLE_OBJECT + c->objects_count;
-	++c->objects_count;
-	return object;
+	assert(c->objects_next_free != 0);
+	const int num = c->objects_next_free;
+	VMObject *obj = &c->objects[num];
+	c->objects_next_free = obj->next_free;
+	memset(obj, 0, sizeof(VMObject));
+	obj->handle = BASE_HANDLE_OBJECT + num;
+	return obj;
 }
 
 VMVar *Object_GetMemberVar(VMObject *obj, int num) {
@@ -54,8 +55,9 @@ void ObjectHandle_Delete(VMContext *c, int obj_handle, int call_delete) {
 	if (obj_handle != 0) {
 		VMObject *obj = VM_GetObjectFromHandle(c, obj_handle);
 		VM_DeleteObject(c, obj, call_delete);
-		warning("ObjectHandle_Delete unimplemented");
 		free(obj->members);
 		memset(obj, 0, sizeof(VMObject));
+		obj->next_free = c->objects_next_free;
+		c->objects_next_free = obj - c->objects;
 	}
 }

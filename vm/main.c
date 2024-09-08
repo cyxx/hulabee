@@ -19,25 +19,27 @@ typedef struct {
 } GameVersion;
 
 static const GameVersion _gameVersions[] = {
-	{ "autorun",       GID_AUTORUN_AOL_MOOP_SONNY },
-	{ "sonnyrace",     GID_SONNY,                 },
-	{ "mooptreasure",  GID_MOOP,                  },
-	{ "ollofair",      GID_OLLO,                  },
-	{ "monsters1",     GID_MONSTERS,              },
-	{ "piglet1",       GID_PIGLET,                },
-	{ "realmahjong",   GID_MAHJONG,               },
-	{ "flipoutjr",     GID_FLIPOUT                },
-	{ "casper2",       GID_CASPER                 },
-	{ "bubbleblast",   GID_BUBBLEBLAST            },
-	{ "stitch2",       GID_STITCH                 },
-	{ "grubalicious2", GID_GRUBALICIOUS           },
-	{ "fourhouses",    GID_FOURHOUSES             },
-	{ "wordspiral",    GID_WORDSPIRAL,            },
-	{ "realmsofgold",  GID_REALMSGOLD,            },
+	{ "autorun",        GID_AUTORUN_AOL_MOOP_SONNY },
+	{ "sonnyrace",      GID_SONNY,                 },
+	{ "mooptreasure",   GID_MOOP,                  },
+	{ "ollofair",       GID_OLLO,                  },
+	{ "monsters1",      GID_MONSTERS,              },
+	{ "piglet1",        GID_PIGLET,                },
+	{ "realmahjong",    GID_MAHJONG,               },
+	{ "flipoutjr",      GID_FLIPOUT                },
+	{ "casper2",        GID_CASPER                 },
+	{ "bubbleblast",    GID_BUBBLEBLAST            },
+	{ "stitch2",        GID_STITCH                 },
+	{ "grubalicious2",  GID_GRUBALICIOUS           },
+	{ "offchal",        GID_OFFCHAL                },
+	{ "treasurearcade", GID_TREASUREARCADE         },
+	{ "fourhouses",     GID_FOURHOUSES             },
+	{ "wordspiral",     GID_WORDSPIRAL,            },
+	{ "realmsofgold",   GID_REALMSGOLD,            },
 	{ 0, -1 },
 };
 
-static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName) {
+static const GameVersion *FindGame(DIR *d, const char *dataPath, char *gameName) {
 	const GameVersion *gameVersion = 0;
 	struct dirent *de;
 	while ((de = readdir(d)) != 0) {
@@ -79,14 +81,11 @@ static const GameVersion *LoadGame(DIR *d, const char *dataPath, char *gameName)
 		} else {
 			Pan_Open(dataPath, gameName, num);
 		}
-		if (num == 0) {
-			for (int i = 0; _gameVersions[i].name; ++i) {
-				if (strcasecmp(gameName, _gameVersions[i].name) != 0) {
-					continue;
-				}
-				gameVersion = &_gameVersions[i];
-				break;
-			}
+	}
+	for (int i = 0; _gameVersions[i].name; ++i) {
+		if (strcasecmp(gameName, _gameVersions[i].name) == 0) {
+			gameVersion = &_gameVersions[i];
+			break;
 		}
 	}
 	return gameVersion;
@@ -159,12 +158,12 @@ int main(int argc, char *argv[]) {
 	} else {
 		char gameName[GAMENAME_LEN + 1];
 		gameName[0] = 0;
-		const GameVersion *version = LoadGame(d, dataPath, gameName);
+		const GameVersion *version = FindGame(d, dataPath, gameName);
 		closedir(d);
 		if (!gameName[0]) {
 			warning("No SAUCE game found in '%s'", dataPath);
 		} else {
-			if (version->gid >= GID_MOOP) {
+			if (version && version->gid >= GID_MOOP) {
 				_windowW = 800;
 				_windowH = 600;
 			}
@@ -176,6 +175,7 @@ int main(int argc, char *argv[]) {
 				debug(DBG_INFO, "Found game ID '%s'", version->name);
 				VM_SetGameID(c, version->gid);
 			}
+			c->get_timer = Host_GetTimer;
 			VM_InitOpcodes();
 			VM_InitSyscalls(c);
 			Host_Init(version ? version->name : "", _windowW, _windowH);

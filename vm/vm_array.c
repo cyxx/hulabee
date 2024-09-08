@@ -5,8 +5,8 @@
 
 VMArray *VM_GetArrayFromHandle(VMContext *c, int num) {
 	const int x = num - BASE_HANDLE_ARRAY;
-	if (x < 0 || x >= c->arrays_count) {
-		error("Array handle %d out of range (%d..%d)", num, BASE_HANDLE_ARRAY, BASE_HANDLE_ARRAY + c->arrays_count);
+	if (x < 0 || x >= VMARRAYS_COUNT) {
+		error("Array handle %d out of range (%d..%d)", num, BASE_HANDLE_ARRAY, BASE_HANDLE_ARRAY + VMARRAYS_COUNT);
 	}
 	VMArray *array = &c->arrays[x];
 	assert(array->handle == num);
@@ -14,11 +14,12 @@ VMArray *VM_GetArrayFromHandle(VMContext *c, int num) {
 }
 
 VMArray *Array_New(VMContext *c) {
-	assert(c->arrays_count < VMARRAYS_COUNT);
-	VMArray *array = &c->arrays[c->arrays_count];
+	assert(c->arrays_next_free != 0);
+	const int num = c->arrays_next_free;
+	VMArray *array = &c->arrays[num];
+	c->arrays_next_free = array->next_free;
 	memset(array, 0, sizeof(VMArray));
-	array->handle = BASE_HANDLE_ARRAY + c->arrays_count;
-	++c->arrays_count;
+	array->handle = BASE_HANDLE_ARRAY + num;
 	return array;
 }
 
@@ -74,10 +75,10 @@ void Array_Dim(VMArray *array, int type, int col_lower, int col_upper) {
 	initArray(array, type);
 	array->col_upper = col_upper;
 	array->col_lower = col_lower;
-	const int size = ((col_upper - col_lower) + 1) * array->elem_size;
-	array->data = (uint8_t *)malloc(size);
+	const int size = col_upper - col_lower + 1;
+	array->data = (uint8_t *)calloc(size, array->elem_size);
 	if (!array->data) {
-		error("Failed to allocate %d bytes in Array_Dim", size);
+		error("Failed to allocate %d bytes in Array_Dim", size * array->elem_size);
 	}
 }
 
@@ -88,10 +89,10 @@ void Array_Dim2(VMArray *array, int type, int row_lower, int row_upper, int col_
 	array->row_lower = row_lower;
 	array->col_lower = col_lower;
 	array->dimension = 2;
-	const int size = (row_upper - row_lower + 1) * (col_upper - col_lower + 1) * array->elem_size;
-	array->data = (uint8_t *)malloc(size);
+	const int size = (row_upper - row_lower + 1) * (col_upper - col_lower + 1);
+	array->data = (uint8_t *)calloc(size, array->elem_size);
 	if (!array->data) {
-		error("Failed to allocate %d bytes in Array_Dim2", size);
+		error("Failed to allocate %d bytes in Array_Dim2", size * array->elem_size);
 	}
 }
 
@@ -99,10 +100,10 @@ void Array_SetString(VMArray *array, const char *s) {
 	initArray(array, VAR_TYPE_CHAR);
 	array->col_lower = 1;
 	array->dimension = 1;
-	array->col_upper = (strlen(s) + 1) * array->elem_size;
-	array->data = (uint8_t *)malloc(array->col_upper);
+	array->col_upper = (strlen(s) + 1);
+	array->data = (uint8_t *)calloc(array->col_upper, array->elem_size);
 	if (!array->data) {
-		error("Failed to allocate %d bytes in Array_SetString", array->col_upper);
+		error("Failed to allocate %d bytes in Array_SetString", array->col_upper * array->elem_size);
 	} else {
 		memcpy(array->data, s, array->col_upper);
 	}
@@ -223,6 +224,17 @@ void Array_InsertUpper(VMArray *array, int value) {
 	assert(array->struct_size == 0);
 }
 
+int Array_DeleteUpper(VMArray *array) {
+	if (array->col_lower > array->col_upper || (array->type == VAR_TYPE_CHAR && array->col_lower == array->col_upper)) {
+		return 0;
+	}
+	const int value = Array_Get(array, array->col_upper);
+	Array_Set(array, array->col_upper, 0);
+	--array->col_upper;
+	++array->unk28;
+	return value;
+}
+
 int Array_GetStringLength(VMArray *array) {
 	if (array->type != VAR_TYPE_CHAR) {
 		error("Can't do string operations on non-string array %d", array->handle);
@@ -311,20 +323,7 @@ int ArrayHandle_CompareString(VMContext *c, int array1, int array2) {
 	checkArrayTypeString(a2);
 	const char *s1 = (const char *)a1->data + a1->offset;
 	const char *s2 = (const char *)a2->data + a2->offset;
-	int ret = -1;
-	while (1) {
-		if (*s1 != *s2) {
-			ret = *s1 - *s2;
-			break;
-		}
-		if (!*s1) {
-			ret = 0;
-			break;
-		}
-		++s1;
-		++s2;
-	}
-	return ret;
+	return strcmp(s1, s2);
 }
 
 void ArrayHandle_ConcatString(VMContext *c, int array1, int array2) {
@@ -384,7 +383,11 @@ void ArrayHandle_UpperString(VMContext *c, int array) {
 	}
 }
 
-void ArrayHandle_Delete(VMContext *c, int handle) {
-	/* todo */
-	warning("ArrayHandle_Delete unimplemented");
+void ArrayHandle_Delete(VMContext *c, int array) {
+	if (array != 0) {
+		VMArray *a = VM_GetArrayFromHandle(c, array);
+		free(a->data);
+		a->next_free = c->arrays_next_free;
+		c->arrays_next_free = a - c->arrays;
+	}
 }

@@ -3,6 +3,11 @@
 #include "util.h"
 #include "vm.h"
 
+static void fn_math_sqrt(VMContext *c) {
+	const float f = VM_PopFloat(c);
+	VM_PushFloat(c, sqrt(f));
+}
+
 static void fn_math_sin(VMContext *c) {
 	const float f = VM_PopFloat(c);
 	VM_PushFloat(c, sin(f));
@@ -16,6 +21,20 @@ static void fn_math_cos(VMContext *c) {
 static void fn_math_tan(VMContext *c) {
 	const float f = VM_PopFloat(c);
 	VM_PushFloat(c, tan(f));
+}
+
+static void fn_math_point_in_rect(VMContext *c) {
+	const int y2 = VM_PopInt32(c);
+	const int x2 = VM_PopInt32(c);
+	const int y1 = VM_PopInt32(c);
+	const int x1 = VM_PopInt32(c);
+	const int py = VM_PopInt32(c);
+	const int px = VM_PopInt32(c);
+	int inside = 0;
+	if (px >= x1 && px <= x2 && py >= y1 && py <= y2) {
+		inside = 1;
+	}
+	VM_Push(c, inside, VAR_TYPE_INT32);
 }
 
 static void fn_math_point_in_poly(VMContext *c) {
@@ -68,9 +87,11 @@ static void fn_math_atan(VMContext *c) {
 }
 
 const VMSyscall _syscalls_math[] = {
+	{ 110009, fn_math_sqrt },
 	{ 110010, fn_math_sin },
 	{ 110011, fn_math_cos },
 	{ 110012, fn_math_tan },
+	{ 110015, fn_math_point_in_rect },
 	{ 110016, fn_math_point_in_poly },
 	{ 110020, fn_math_asin },
 	{ 110021, fn_math_acos },

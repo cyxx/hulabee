@@ -14,7 +14,8 @@ typedef struct host_image_t {
 } HostImage;
 
 int Host_ImageNew();
-void Host_ImageCreate(int img, int w, int h, int depth);
+void Host_ImageCreate(int handle, int w, int h, int depth);
+void Host_ImageDelete(int handle);
 HostImage *Host_ImageGet(int handle);
 
 typedef struct host_cursor_t {
@@ -23,7 +24,8 @@ typedef struct host_cursor_t {
 } HostCursor;
 
 int Host_CursorNew();
-void Host_CursorCreate(int num, HostImage *);
+void Host_CursorCreate(int handle, HostImage *);
+void Host_CursorDelete(int handle);
 HostCursor *Host_CursorGet(int handle);
 void Host_SetCursor(HostCursor *cursor);
 
@@ -34,18 +36,19 @@ typedef struct host_sprite_t {
 	uint32_t handle;
 	int x, y;
 	int order;
-	int hidden;
 	int asset;
 	struct can_animation_data_t *animation_data;
 	struct can_animation_state_t *animation_state;
 	SDL_Surface *image;
+	bool hidden;
+	bool flip_x, flip_y;
+	float rate;
 } HostSprite;
 
-int HostSprite_New();
-void HostSprite_Delete(int handle);
-HostSprite *HostSprite_Get(int handle);
+int Host_SpriteNew();
+void Host_SpriteDelete(int handle);
+HostSprite *Host_SpriteGet(int handle);
 
-int Host_CreateSprite();
 int Host_GetSpriteAnim(int spr);
 void Host_GetSpriteSize(int spr, int *w, int *h);
 void Host_SetSpriteAnim(int spr, int anim);
@@ -53,6 +56,8 @@ void Host_SetSpritePos(int spr, int x, int y);
 void Host_SetSpriteImage(int spr, SDL_Surface *s);
 
 void Host_SetWindowBackground(SDL_Surface *s);
+
+uint32_t Host_GetTimer();
 
 int Host_GetLeftClick();
 int Host_GetRightClick();

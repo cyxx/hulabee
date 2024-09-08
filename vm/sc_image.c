@@ -105,6 +105,24 @@ static void fn_image_print(VMContext *c) {
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
+static void fn_image_line(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented Image:line");
+}
+
+static void fn_image_rect(VMContext *c) {
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	VM_PopInt32(c);
+	warning("Unimplemented Image:rect");
+}
+
 static void fn_image_get_x_size(VMContext *c) {
 	const int image_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Image:x_size num:%d", image_num);
@@ -122,14 +140,15 @@ static void fn_image_get_y_size(VMContext *c) {
 }
 
 static void fn_image_pen_color(VMContext *c) {
-	const int a = VM_PopInt32(c);
+	const int color = VM_PopInt32(c);
 	const int image_num = VM_PopInt32(c);
-	warning("Unimplemented Image:penColor num:%d %d", image_num, a);
+	warning("Unimplemented Image:penColor num:%d color:0x%x", image_num, color);
 }
 
 static void fn_image_destroy(VMContext *c) {
 	const int image_num = VM_PopInt32(c);
-	warning("Unimplemented Image:destroy num:%d", image_num);
+	debug(DBG_SYSCALLS, "Image:destroy num:%d", image_num);
+	Host_ImageDelete(image_num);
 }
 
 const VMSyscall _syscalls_image[] = {
@@ -140,6 +159,8 @@ const VMSyscall _syscalls_image[] = {
 	{ 100007, fn_image_clear },
 	{ 100009, fn_image_print_at },
 	{ 100010, fn_image_print },
+	{ 100011, fn_image_line },
+	{ 100012, fn_image_rect },
 	{ 100025, fn_image_get_x_size },
 	{ 100026, fn_image_get_y_size },
 	{ 100028, fn_image_pen_color },

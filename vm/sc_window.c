@@ -75,8 +75,8 @@ static void fn_window_blank(VMContext *c) {
 }
 
 static void fn_window_mode_mangle_rgb(VMContext *c) {
-	debug(DBG_SYSCALLS, "Window:modeMangleRGB");
 	const uint32_t color = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Window:modeMangleRGB color:0x%x", color);
 	VM_Push(c, color & 0xFFF8F8F8, VAR_TYPE_INT32);
 }
 

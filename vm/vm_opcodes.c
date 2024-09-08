@@ -27,7 +27,7 @@ static void op_jump(VMContext *c) {
 
 static void op_return(VMContext *c) {
 	debug(DBG_OPCODES, "op_return");
-	c->script->state = 4;
+	c->script->state = SCRIPT_STATE_ENDED;
 }
 
 static void op_push_int8(VMContext *c) {
@@ -135,7 +135,7 @@ static void op_pop_local(VMContext *c) {
 		assert((num & 0xFF000000) == 0);
 		count = (num >> 16) & 0xFF;
 	}
-	VMVar *var = VM_GetLocalVar(c, num);
+	VMVar *var = VM_GetLocalVar(c, num & 0xFFFF);
 	var += count - 1;
 	for (int i = 0; i < count; ++i, --var) {
 		VM_CheckVarType(var->type);
@@ -465,10 +465,14 @@ static void op_pop_static_array(VMContext *c) {
 	const uint32_t num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_pop_static_array num:%d", num);
+	int count = 1;
 	if (num & 0xFFFF0000) {
-		error("Unimplemented op_pop_static_array num:0x%x", num);
-	} else {
-		SobVar *var = VM_GetClassStaticVar(c, c->script->sob_data, num);
+		assert((num & 0xFF000000) == 0);
+		count = (num >> 16) & 0xFF;
+	}
+	SobVar *var = VM_GetClassStaticVar(c, c->script->sob_data, num & 0xFFFF);
+	var += count - 1;
+	for (int i = 0; i < count; ++i, --var) {
 		VMVar st2 = VM_Pop2(c);
 		VM_CheckVarType(var->type);
 		VM_CheckVarType(st2.type);
@@ -499,7 +503,7 @@ static void op_pop_me_array(VMContext *c) {
 	c->script->code_offset += 4;
 	debug(DBG_OPCODES, "op_pop_me_array num:%d", num);
 
-	VMVar st = VM_Pop2(c);
+	const int x = VM_PopInt32(c);
 
 	if (num & 0xFFFF0000) {
 		error("Unimplemented op_pop_me_array num:0x%x", num);
@@ -517,7 +521,7 @@ static void op_pop_me_array(VMContext *c) {
 				type &= ~0x100;
 				type |= 0x10000;
 			}
-			Array_Set(array, st.value, VM_ConvertVar(type, &st2));
+			Array_Set(array, x, VM_ConvertVar(type, &st2));
 		}
 	}
 }
@@ -552,8 +556,43 @@ static void op_push_me1(VMContext *c) {
 	}
 }
 
+static void op_push_member_array(VMContext *c) {
+	const int x = VM_PopInt32(c);
+
+	const int obj_handle = VM_Pop(c, VAR_TYPE_OBJECT);
+	if (obj_handle == 0) {
+		error("Accessing member variable from a NULL object");
+	}
+	VMObject *obj = VM_GetObjectFromHandle(c, obj_handle);
+	if (!obj) {
+		error("Object handle %d was deleted", obj_handle);
+	}
+	const int num = READ_LE_UINT32(c->code); c->code += 4;
+	c->script->code_offset += 4;
+	debug(DBG_OPCODES, "op_push_member_array num:%d", num);
+
+	if (num & 0xFFFF0000) {
+		error("Unimplemented op_push_member_array num:0x%x", num);
+	} else {
+		VMVar *var = VM_GetObjectMemberVar(c, obj, num & 0xFFFF);
+		int type = var->type & 0xFFFF;
+		if (type & 0x100) {
+			type &= ~0x100;
+			type |= 0x10000;
+		}
+		VM_CheckVarType(var->type);
+		if ((var->type & 0x10000) == 0) {
+			error("Using array reference on non-array variable");
+		} else {
+			VMArray *array = VM_GetArrayFromHandle(c, var->value);
+			const int value = Array_Get(array, x);
+			VM_Push(c, value, type);
+		}
+	}
+}
+
 static void op_push_static_array(VMContext *c) {
-	int x = VM_PopInt32(c);
+	const int x = VM_PopInt32(c);
 
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
@@ -580,7 +619,7 @@ static void op_push_static_array(VMContext *c) {
 }
 
 static void op_pop_local_array(VMContext *c) {
-	VMVar st1 = VM_Pop2(c);
+	const int x = VM_PopInt32(c);
 
 	const int num = READ_LE_UINT32(c->code); c->code += 4;
 	c->script->code_offset += 4;
@@ -602,7 +641,7 @@ static void op_pop_local_array(VMContext *c) {
 				type &= ~0x100;
 				type |= 0x10000;
 			}
-			Array_Set(array, st1.value, VM_ConvertVar(type, &st2));
+			Array_Set(array, x, VM_ConvertVar(type, &st2));
 		}
 	}
 }
@@ -892,8 +931,8 @@ static void op_stop(VMContext *c) {
 static void op_stop_me(VMContext *c) {
 	debug(DBG_OPCODES, "op_stop_me");
 	VMThread *thread = c->script->thread;
-	thread->state = 3;
-	c->script->state = 4;
+	thread->state = SCRIPT_STATE_DEAD;
+	c->script->state = SCRIPT_STATE_ENDED;
 }
 
 static void op_running(VMContext *c) {
@@ -979,8 +1018,8 @@ static void op_delete_upper(VMContext *c) {
 		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
 	}
 	VMArray *array = VM_GetArrayFromHandle(c, st.value);
-	warning("Unimplemented op_delete_upper");
-	VM_Push(c, 0, array->type);
+	const int value = Array_DeleteUpper(array);
+	VM_Push(c, value, array->type);
 }
 
 static void op_class_handle(VMContext *c) {
@@ -1156,6 +1195,24 @@ static void op_call_parent(VMContext *c) {
 	VM_InvokeMethod(c, c->script->sob_data, num, obj_handle, 0, 0, 1);
 }
 
+static void op_start_parent(VMContext *c) {
+	const int type = *c->code++;
+	++c->script->code_offset;
+	const int num = READ_LE_UINT32(c->code); c->code += 4;
+	c->script->code_offset += 4;
+	debug(DBG_OPCODES, "op_start_parent num:%d type:%d", num, type);
+	const int obj_handle = VM_Pop(c, VAR_TYPE_OBJECT);
+	if (obj_handle == 0) {
+		error("Calling method from NULL object");
+	}
+	if (type == 2) {
+		const int ret = VM_InvokeMethod(c, c->script->sob_data, num, obj_handle, 2, 0, 1);
+		VM_Push(c, ret, VAR_TYPE_INT32);
+	} else {
+		VM_InvokeMethod(c, c->script->sob_data, num, obj_handle, type, 0, 1);
+	}
+}
+
 static void op_new_expr(VMContext *c) {
 	VMVar st = VM_Pop2(c);
 	const int class_handle = st.value;
@@ -1191,10 +1248,9 @@ static void op_breakmany(VMContext *c) {
 static void op_breaktime(VMContext *c) {
 	const float delta = VM_PopFloat(c);
 	debug(DBG_OPCODES, "op_breaktime delta:%f", delta);
-	c->script->thread->break_time = 0;
+	c->script->thread->break_time = (*c->get_timer)() + (int)(delta * 1000.);
 	c->script->thread->break_counter = 0;
 	c->script->state = 5;
-	warning("Unimplemented op_breaktime");
 }
 
 static void op_delete_array(VMContext *c) {
@@ -1447,6 +1503,7 @@ void VM_InitOpcodes() {
 	_opcodes[0x31] = &op_gt_int;
 	_opcodes[0x32] = &op_push_local_array;
 	_opcodes[0x33] = &op_push_me1;
+	_opcodes[0x34] = &op_push_member_array;
 	_opcodes[0x35] = &op_push_static_me_array;
 	_opcodes[0x36] = &op_push_static_array;
 	_opcodes[0x37] = &op_pop_local_array;
@@ -1506,6 +1563,7 @@ void VM_InitOpcodes() {
 	_opcodes[0x8c] = &op_push_float;
 	_opcodes[0x8e] = &op_start_callback;
 	_opcodes[0x8f] = &op_call_parent;
+	_opcodes[0x90] = &op_start_parent;
 	_opcodes[0x91] = &op_new_expr;
 	_opcodes[0x92] = &op_array_find;
 	_opcodes[0x93] = &op_breakmany;

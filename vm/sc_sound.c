@@ -24,6 +24,16 @@ static void fn_sound_play(VMContext *c) {
 	warning("Unimplemented fn_sound_play");
 }
 
+static void fn_sound_pause(VMContext *c) {
+	VM_PopInt32(c);
+	warning("Unimplemented fn_sound_pause");
+}
+
+static void fn_sound_resume(VMContext *c) {
+	VM_PopInt32(c);
+	warning("Unimplemented fn_sound_resume");
+}
+
 static void fn_sound_stop(VMContext *c) {
 	VM_PopInt32(c);
 	warning("Unimplemented fn_sound_stop");
@@ -39,6 +49,12 @@ static void fn_sound_set_volume(VMContext *c) {
 	VM_PopInt32(c);
 	VM_PopInt32(c);
 	warning("Unimplemented fn_sound_setVolume");
+}
+
+static void fn_sound_get_volume(VMContext *c) {
+	VM_PopInt32(c);
+	warning("Unimplemented fn_sound_getVolume");
+	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
 static void fn_sound_set_pan(VMContext *c) {
@@ -95,9 +111,12 @@ const VMSyscall _syscalls_sound[] = {
 	{ 80002, fn_sound_destroy },
 	{ 80003, fn_sound_open },
 	{ 80004, fn_sound_play },
+	{ 80005, fn_sound_pause },
+	{ 80006, fn_sound_resume },
 	{ 80007, fn_sound_stop },
 	{ 80008, fn_sound_status },
 	{ 80009, fn_sound_set_volume },
+	{ 80010, fn_sound_get_volume },
 	{ 80011, fn_sound_set_pan },
 	{ 80013, fn_sound_set_rate },
 	{ 80019, fn_sound_play_resource },

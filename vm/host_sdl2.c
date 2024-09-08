@@ -21,10 +21,18 @@ int Host_ImageNew() {
 	return num;
 }
 
-void Host_ImageCreate(int num, int w, int h, int depth) {
-	HostImage *img = Host_ImageGet(num);
+void Host_ImageCreate(int handle, int w, int h, int depth) {
+	HostImage *img = Host_ImageGet(handle);
 	assert(!img->s);
 	img->s = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 32, 0xFF, 0xFF00, 0xFF0000, 0xFF000000);
+}
+
+void Host_ImageDelete(int handle) {
+	HostImage *img = Host_ImageGet(handle);
+	if (img->s) {
+		SDL_FreeSurface(img->s);
+	}
+	memset(img, 0, sizeof(HostImage));
 }
 
 HostImage *Host_ImageGet(int handle) {
@@ -47,10 +55,18 @@ int Host_CursorNew() {
 	return num;
 }
 
-void Host_CursorCreate(int num, HostImage *img) {
-	HostCursor *cursor = Host_CursorGet(num);
+void Host_CursorCreate(int handle, HostImage *img) {
+	HostCursor *cursor = Host_CursorGet(handle);
 	assert(!cursor->c);
 	cursor->c = SDL_CreateColorCursor(img->s, 1, 1);
+}
+
+void Host_CursorDelete(int handle) {
+	HostCursor *cur = Host_CursorGet(handle);
+	if (cur->c) {
+		SDL_FreeCursor(cur->c);
+	}
+	memset(cur, 0, sizeof(HostCursor));
 }
 
 HostCursor *Host_CursorGet(int handle) {
@@ -64,29 +80,44 @@ void Host_SetCursor(HostCursor *cursor) {
 	SDL_SetCursor(cursor->c);
 }
 
-#define SPRITES_COUNT 64
+#define SPRITES_COUNT 128
 
 static HostSprite _sprites[SPRITES_COUNT];
 static int _spritesCount;
 
-int Host_CreateSprite() {
+int Host_SpriteNew() {
 	const int num = _spritesCount;
 	assert(num < SPRITES_COUNT);
 	++_spritesCount;
 	HostSprite *spr = &_sprites[num];
 	memset(spr, 0, sizeof(HostSprite));
 	spr->handle = num;
+	spr->rate = 1.;
 	return num;
 }
 
-HostSprite *HostSprite_Get(int handle) {
+void Host_SpriteDelete(int handle) {
+	HostSprite *spr = Host_SpriteGet(handle);
+	if (spr->image) {
+		SDL_FreeSurface(spr->image);
+	}
+	if (spr->animation_state) {
+		free(spr->animation_state);
+	}
+	if (spr->animation_data) {
+		UnloadCan(spr->animation_data);
+	}
+	memset(spr, 0, sizeof(HostSprite));
+}
+
+HostSprite *Host_SpriteGet(int handle) {
 	assert(handle >= 0 && handle < SPRITES_COUNT);
 	HostSprite *spr = &_sprites[handle];
 	return spr;
 }
 
 int Host_GetSpriteAnim(int spr_num) {
-	HostSprite *spr = HostSprite_Get(spr_num);
+	HostSprite *spr = Host_SpriteGet(spr_num);
 	int current_anim = 0;
 	if (spr->animation_state) {
 		current_anim = spr->animation_state->current_animation;
@@ -96,16 +127,6 @@ int Host_GetSpriteAnim(int spr_num) {
 
 void Host_SetSpriteAnim(int spr_num, int anim) {
 	HostSprite *spr = &_sprites[spr_num];
-	spr->x = spr->y = 0;
-	if (anim != 0) {
-		const int animation_index = FindAnimation(spr->animation_data, anim);
-		if (animation_index < 0) {
-			warning("Animation ID %d not found", anim);
-			spr->x = spr->y = 0;
-		} else {
-			GetAnimationPos(spr->animation_data, animation_index, &spr->x, &spr->y);
-		}
-	}
 	if (!spr->animation_state) {
 		spr->animation_state = (CanAnimationState *)malloc(sizeof(CanAnimationState));
 	}
@@ -155,6 +176,13 @@ void Host_SetWindowBackground(SDL_Surface *s) {
 	g_background = SDL_DuplicateSurface(s);
 }
 
+uint32_t Host_GetTimer() {
+	if (0) {
+		return SDL_GetPerformanceCounter() * 1000 / SDL_GetPerformanceFrequency();
+	}
+	return SDL_GetTicks();
+}
+
 static int _prevButtons, _currentButtons;
 
 int Host_GetLeftClick() {
@@ -189,7 +217,7 @@ static void animate_sprites() {
 	for (int i = 0; i < _spritesCount; ++i) {
 		HostSprite *spr = &_sprites[i];
 		if (spr->animation_state) {
-			Can_Update(spr->animation_data, spr->animation_state, SDL_GetTicks());
+			Can_Update(spr->animation_data, spr->animation_state, SDL_GetTicks(), spr->rate);
 		}
 	}
 }

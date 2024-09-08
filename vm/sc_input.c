@@ -14,6 +14,12 @@ static void fn_input_new_cursor(VMContext *c) {
 	VM_Push(c, cursor_num, VAR_TYPE_INT32);
 }
 
+static void fn_input_destroy_cursor(VMContext *c) {
+	const int cursor_num = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Input:setCursor cursor:%d", cursor_num);
+	Host_CursorDelete(cursor_num);
+}
+
 static void fn_input_set_cursor(VMContext *c) {
 	const int cursor_num = VM_PopInt32(c);
 	debug(DBG_SYSCALLS, "Input:setCursor cursor:%d", cursor_num);
@@ -33,8 +39,10 @@ static void fn_input_get_ctrl_key(VMContext *c) {
 
 static void fn_input_get_key_state(VMContext *c) {
 	const int code = VM_PopInt32(c);
-	warning("Unimplemented fn_input_get_key_state %d", code);
-	VM_Push(c, 0, VAR_TYPE_INT32);
+	int count = 0;
+	const uint8_t *state = SDL_GetKeyboardState(&count);
+	debug(DBG_SYSCALLS, "input:getKeyState %d", code);
+	VM_Push(c, code < count ? state[code] : 0, VAR_TYPE_INT32);
 }
 
 static void fn_input_get_cursor_x(VMContext *c) {
@@ -85,6 +93,7 @@ static void fn_input_hide_cursor(VMContext *c) {
 
 const VMSyscall _syscalls_input[] = {
 	{ 40001, fn_input_new_cursor },
+	{ 40002, fn_input_destroy_cursor },
 	{ 40003, fn_input_set_cursor },
 	{ 40004, fn_input_get_shift_key },
 	{ 40005, fn_input_get_ctrl_key },

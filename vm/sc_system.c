@@ -9,7 +9,7 @@ static void fn_system_frame_rate(VMContext *c) {
 }
 
 static void fn_system_timer(VMContext *c) {
-	VM_Push(c, SDL_GetTicks(), VAR_TYPE_INT32);
+	VM_Push(c, Host_GetTimer(), VAR_TYPE_INT32);
 }
 
 static void fn_system_gc(VMContext *c) {

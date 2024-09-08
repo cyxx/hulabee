@@ -67,7 +67,7 @@ void GetCanBitmapBounds(CanData *anim, int num, int frame, int *x1, int *y1, int
 
 void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *, int x, int y, int flags);
 void Can_Reset(CanData *anim, CanAnimationState *state, int timestamp);
-void Can_Update(CanData *anim, CanAnimationState *state, int timestamp);
+void Can_Update(CanData *anim, CanAnimationState *state, int timestamp, float rate);
 bool Can_HasTrigger(CanData *anim, CanAnimationState *state, int frame, int trigger);
 int Can_GetTriggersCount(CanData *anim, CanAnimationState *state, int frame);
 bool Can_Done(CanData *anim, CanAnimationState *state);
