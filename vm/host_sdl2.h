@@ -55,6 +55,7 @@ void Host_SetSpriteAnim(int spr, int anim);
 void Host_SetSpritePos(int spr, int x, int y);
 void Host_SetSpriteImage(int spr, SDL_Surface *s);
 
+void Host_BlankWindow();
 void Host_SetWindowBackground(SDL_Surface *s);
 
 uint32_t Host_GetTimer();

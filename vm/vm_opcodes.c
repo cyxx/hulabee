@@ -1266,8 +1266,8 @@ static void op_setthreadid(VMContext *c) {
 }
 
 static void op_setthreadorder(VMContext *c) {
-	debug(DBG_OPCODES, "op_setthreadorder");
 	const int order = VM_PopInt32(c);
+	debug(DBG_OPCODES, "op_setthreadorder order:%d", order);
 	c->script->thread->order = order;
 }
 

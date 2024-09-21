@@ -23,6 +23,10 @@ VMThread *Thread_New(VMContext *c) {
 }
 
 void Thread_Delete(VMContext *c, VMThread *thread) {
+	VMScript *script = thread->script;
+	if (script) {
+		/* todo */
+	}
 	thread->next_free = c->threads_next_free;
 	c->threads_next_free = thread - c->threads;
 }
@@ -30,12 +34,6 @@ void Thread_Delete(VMContext *c, VMThread *thread) {
 void Thread_Start(VMThread *thread) {
 	thread->id = thread->handle;
 	thread->state = 1;
-}
-
-void Thread_Stop(VMThread *thread) {
-	/* todo */
-	warning("Thread_Stop unimplemented");
-	thread->state = 3;
 }
 
 void Thread_Define(VMThread *thread, int num, int offset) {

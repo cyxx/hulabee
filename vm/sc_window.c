@@ -69,9 +69,9 @@ static void fn_window_y_size(VMContext *c) {
 }
 
 static void fn_window_blank(VMContext *c) {
-	VM_PopInt32(c);
-	debug(DBG_SYSCALLS, "Window:blank");
-	warning("Unimplemented Window:blank");
+	const int a = VM_PopInt32(c);
+	debug(DBG_SYSCALLS, "Window:blank %d", a);
+	Host_BlankWindow();
 }
 
 static void fn_window_mode_mangle_rgb(VMContext *c) {
@@ -94,8 +94,15 @@ static void fn_window_draw(VMContext *c) {
 		if (type == PAN_ASSET_TYPE_CAN) {
 			CanData *data = LoadCan(pb.buffer, pb.size);
 			if (data) {
-				const int animation_index = FindAnimation(data, arg1);
-				Can_Draw(data, animation_index, 0 /* frame */, g_background, 0 /* x */, 0 /* y */, 0 /* flags */);
+				int anim = 0;
+				if (arg1 != -1) {
+					anim = FindAnimation(data, arg1);
+				}
+				int frame = 0;
+				if (arg2 != -1) {
+					frame = arg2;
+				}
+				Can_Draw(data, anim, frame, g_background, 0 /* x */, 0 /* y */, 0 /* flags */);
 				UnloadCan(data);
 			}
 		} else {

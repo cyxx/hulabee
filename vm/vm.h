@@ -9,7 +9,7 @@
 #define VMCLASSES_COUNT 1024
 #define VMARRAYS_COUNT  1024
 #define VMOBJECTS_COUNT 1024
-#define VMTHREADS_COUNT   64
+#define VMTHREADS_COUNT  128
 #define VMSTACK_SIZE    1024
 
 enum {
@@ -98,7 +98,7 @@ typedef struct vmthread_t {
 	uint16_t next_free;
 	int id;
 	int order;
-	int unkC;
+	int script_thread_handle;
 	int break_counter;
 	int break_time;
 	int state;
@@ -158,6 +158,7 @@ void VM_ExecuteSyscallByIndex(VMContext *, int index);
 void VM_RunMainBoot(VMContext *c, const char *name, const char *params);
 int VM_InvokeStaticMethod(VMContext *c, const char *class_name, const char *static_name);
 int VM_InvokeMethod(VMContext *c, SobData *sob, int member_index, int obj_handle, int start_call, int is_static, int is_parent);
+int VM_StartMethod(VMContext *c, int obj_handle, const char *name);
 int VM_FindOrLoadClass(VMContext *, const char *name, int error_flag);
 int VM_LoadClass(VMContext *, const char *name, int error_flag);
 void VM_StartCallback(VMContext *, int handle, const char *name);
@@ -224,7 +225,6 @@ VMThread *VM_GetThreadFromHandle(VMContext *c, int num);
 VMThread *Thread_New(VMContext *c);
 void Thread_Delete(VMContext *c, VMThread *);
 void Thread_Start(VMThread *);
-void Thread_Stop(VMThread *);
 void Thread_Define(VMThread *, int num, int offset);
 void ThreadHandle_GoTo(VMContext *c, int handle, int num);
 int ThreadHandle_FindId(VMContext *c, int handle);

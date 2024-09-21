@@ -68,31 +68,40 @@ CanData *LoadCan(const uint8_t *data, int size) {
 		const int unk2c = READ_LE_UINT32(data + offset); offset += 4;
 		debug(DBG_CAN, "CAN entry %d num:%d unk2c:%d bounds:%d,%d,%d,%d", i, frame->num, unk2c, frame->bounds_x1, frame->bounds_y1, frame->bounds_x2, frame->bounds_y2);
 		AnimationFrameTrigger *triggers = (AnimationFrameTrigger *)calloc(frames_count, sizeof(AnimationFrameTrigger));
-		for (int j = 0; j < frames_count; ++j) {
-			const int len = READ_LE_UINT32(data + offset); offset += 4;
-			triggers[j].count = len;
-			triggers[j].offset = offset;
-			for (int k = 0; k < len; ++k) {
-				const int id = READ_LE_UINT32(data + offset); offset += 4;
-				debug(DBG_CAN, "CAN frame %d trigger %d=%d", j, k, id);
+		if (!triggers) {
+			error("Failed to allocate %d AnimationFrameTrigger", frames_count);
+		} else {
+			for (int j = 0; j < frames_count; ++j) {
+				const int len = READ_LE_UINT32(data + offset); offset += 4;
+				triggers[j].count = len;
+				triggers[j].offset = offset;
+				for (int k = 0; k < len; ++k) {
+					const int id = READ_LE_UINT32(data + offset); offset += 4;
+					debug(DBG_CAN, "CAN frame %d trigger %d=%d", j, k, id);
+				}
 			}
 		}
 		frame->triggers = triggers;
 		if (layers != 0) {
-			frame->offset_layers_id = offset;
-			for (int j = 0; j < layers; ++j) {
-				const int a = READ_LE_UINT32(data + offset); offset += 4;
-				debug(DBG_CAN, "CAN layer %d ID %d", j, a);
-			}
-			frame->offset_layers_palette = offset;
-			for (int j = 0; j < layers; ++j) {
-				const int b = READ_LE_UINT32(data + offset); offset += 4;
-				debug(DBG_CAN, "CAN layer %d palette %d", j, b);
+			frame->layers = (AnimationLayer *)calloc(layers, sizeof(AnimationLayer));
+			if (!frame->layers) {
+				error("Failed to allocate %d AnimationLayer", layers);
+			} else {
+				for (int j = 0; j < layers; ++j) {
+					const int a = READ_LE_UINT32(data + offset); offset += 4;
+					debug(DBG_CAN, "CAN layer %d ID %d", j, a);
+					frame->layers[j].num = a;
+				}
+				for (int j = 0; j < layers; ++j) {
+					const int b = READ_LE_UINT32(data + offset); offset += 4;
+					debug(DBG_CAN, "CAN layer %d palette %d", j, b);
+					frame->layers[j].palette_num = b;
+				}
 			}
 		}
 		frame->frames = (AnimationFrameLayer *)calloc(frames_count * layers, sizeof(AnimationFrameLayer));
 		if (!frame->frames) {
-			error("Unable to allocate %d AnimationFrameLayer", frames_count * layers);
+			error("Failed to allocate %d AnimationFrameLayer", frames_count * layers);
 		} else {
 			assert(layers > 0);
 			for (int j = 0; j < frames_count; ++j) {
@@ -155,16 +164,17 @@ void GetAnimationBounds(CanData *anim, int num, int *x1, int *y1, int *x2, int *
 	*y2 = entry->bounds_y2;
 }
 
-void GetCanBitmapBounds(CanData *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2) {
+void Can_GetFrameBounds(CanData *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2) {
 	assert(num >= 0 && num < anim->entries_count);
 	CanAnimation *entry = &anim->entries[num];
 	assert(frame >= 0 && frame < entry->frames_count);
 	AnimationFrameLayer *afl = &entry->frames[frame * entry->layers_count];
+	AnimationLayer *layers = entry->layers;
 	*x1 = *y1 = INT32_MAX;
 	*x2 = *y2 = INT32_MIN;
 	for (int i = 0; i < entry->layers_count; ++i) {
 		const int bitmap_num = afl[i].bitmap_num;
-		if (bitmap_num == 0) {
+		if (layers[i].hidden || bitmap_num == 0) {
 			continue;
 		}
 		if (*x1 > afl[i].x_pos) {
@@ -185,7 +195,7 @@ void GetCanBitmapBounds(CanData *anim, int num, int frame, int *x1, int *y1, int
 	}
 }
 
-static void decodeHelper(const uint8_t *data, const uint8_t *offsets, int w, int h, uint8_t *dst8, int dst_pitch) {
+static void decode(const uint8_t *data, const uint8_t *offsets, int w, int h, uint8_t *dst, int dst_pitch) {
 	for (int y = 0; y < h; ++y, offsets += 4) {
 		const uint8_t *line = data + READ_LE_UINT32(offsets);
 		for (int x = 0; x < w; ) {
@@ -196,16 +206,16 @@ static void decodeHelper(const uint8_t *data, const uint8_t *offsets, int w, int
 			} else if (code == 1) {
 				const int count = *line++;
 				const int color = *line++;
-				memset(dst8 + x, color, count);
+				memset(dst + x, color, count);
 				x += count;
 			} else if (code == 2 || code == 4) {
 				const int count = *line++;
-				memcpy(dst8 + x, line, count);
+				memcpy(dst + x, line, count);
 				x += count;
 				line += count;
 			}
 		}
-		dst8 += dst_pitch;
+		dst += dst_pitch;
 	}
 }
 
@@ -239,7 +249,7 @@ static SDL_Surface *create_surface(CanData *anim, uint32_t offset) {
 	SDL_Surface *s = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 8, 0, 0, 0, 0);
 	if (s) {
 		SDL_LockSurface(s);
-		decodeHelper(anim->data + offset, anim->data + offset, w, h, s->pixels, s->pitch);
+		decode(anim->data + offset, anim->data + offset, w, h, s->pixels, s->pitch);
 		SDL_UnlockSurface(s);
 		SDL_SetSurfaceBlendMode(s, SDL_BLENDMODE_NONE);
 		SDL_SetColorKey(s, SDL_TRUE, SDL_MapRGB(s->format, 0x80, 0x00, 0x80));
@@ -258,33 +268,34 @@ void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *target, int
 	}
 	assert(frame >= 0 && frame < entry->frames_count);
 	AnimationFrameLayer *afl = &entry->frames[frame * entry->layers_count];
-	const uint8_t *layer_palette = anim->data + entry->offset_layers_palette;
+	AnimationLayer *layers = entry->layers;
 	for (int i = 0; i < entry->layers_count; ++i, ++afl) {
-		int palette_num = READ_LE_UINT32(layer_palette); layer_palette += 4;
-		if (afl->bitmap_num != 0) {
-			CanBitmap *b = &anim->bitmaps[afl->bitmap_num];
-			if (!b->s) {
-				b->s = create_surface(anim, b->bitmap_offset);
-				if (!b->s) {
-					continue;
-				}
-			}
-			if (palette_num == -1) {
-			       palette_num = entry->default_palette_num;
-			}
-			if (b->palette_num != palette_num) {
-				SDL_Color colors[256];
-				read_palette(anim, palette_num, colors);
-				SDL_SetPaletteColors(b->s->format->palette, colors, 0, 256);
-				b->palette_num = palette_num;
-			}
-			SDL_Rect dst;
-			dst.x = x ? (x + afl->x_pos - entry->pos_x) : afl->x_pos;
-			dst.y = y ? (y + afl->y_pos - entry->pos_y) : afl->y_pos;
-			dst.w = b->s->w;
-			dst.h = b->s->h;
-			SDL_BlitSurface(b->s, 0, target, &dst);
+		if (layers[i].hidden || afl->bitmap_num  == 0) {
+			continue;
 		}
+		CanBitmap *b = &anim->bitmaps[afl->bitmap_num];
+		if (!b->s) {
+			b->s = create_surface(anim, b->bitmap_offset);
+			if (!b->s) {
+				continue;
+			}
+		}
+		int palette_num = layers[i].palette_num;
+		if (palette_num == -1) {
+		       palette_num = entry->default_palette_num;
+		}
+		if (b->palette_num != palette_num) {
+			SDL_Color colors[256];
+			read_palette(anim, palette_num, colors);
+			SDL_SetPaletteColors(b->s->format->palette, colors, 0, 256);
+			b->palette_num = palette_num;
+		}
+		SDL_Rect dst;
+		dst.x = x ? (x + afl->x_pos - entry->pos_x) : afl->x_pos;
+		dst.y = y ? (y + afl->y_pos - entry->pos_y) : afl->y_pos;
+		dst.w = b->s->w;
+		dst.h = b->s->h;
+		SDL_BlitSurface(b->s, 0, target, &dst);
 	}
 }
 
@@ -295,14 +306,14 @@ void Can_Reset(CanData *anim, CanAnimationState *state, int timestamp) {
 
 void Can_Update(CanData *anim, CanAnimationState *state, int timestamp, float rate) {
 	CanAnimation *entry = &anim->entries[state->current_animation];
-	if (entry->rate == 0 || rate == 0.) {
-		return;
+	debug(DBG_CAN, "Can_Update rate:%d %f frame:%d/%d", entry->rate, rate, state->current_frame, entry->frames_count);
+	if (entry->rate != 0 && rate != 0.) {
+		const int count = (timestamp - state->timestamp) / (entry->rate * rate);
+		if (count != 0) {
+			state->current_frame += count;
+			state->timestamp = timestamp;
+		}
 	}
-	const int count = (timestamp - state->timestamp) / (entry->rate * rate);
-	if (count == 0) {
-		return;
-	}
-	state->current_frame += count;
 	if (state->current_frame >= entry->frames_count) {
 		if (state->loop) {
 			state->current_frame %= entry->frames_count;
@@ -310,7 +321,6 @@ void Can_Update(CanData *anim, CanAnimationState *state, int timestamp, float ra
 			state->current_frame = entry->frames_count - 1;
 		}
 	}
-	state->timestamp = timestamp;
 }
 
 bool Can_HasTrigger(CanData *anim, CanAnimationState *state, int frame, int trigger) {
@@ -337,4 +347,39 @@ bool Can_Done(CanData *anim, CanAnimationState *state) {
 	CanAnimation *entry = &anim->entries[state->current_animation];
 	debug(DBG_CAN, "Can_Done loop:%d rate:%d frame %d/%d", state->loop, entry->rate, state->current_frame, entry->frames_count);
 	return state->loop == 0 && state->current_frame == (entry->frames_count - 1);
+}
+
+void Can_SetAnimation(CanData *anim, CanAnimationState *state, int num) {
+	if (num < 0 || num >= anim->entries_count) {
+		warning("Invalid anim %d (count %d)", num, anim->entries_count);
+	} else {
+		state->current_animation = num;
+	}
+}
+
+void Can_SetAnimationFrame(CanData *anim, CanAnimationState *state, int frame) {
+	CanAnimation *entry = &anim->entries[state->current_animation];
+	if (frame < 0 || frame >= entry->frames_count) {
+		warning("Invalid frame %d (count %d)", frame, entry->frames_count);
+	} else {
+		state->current_frame = frame;
+	}
+}
+
+void Can_ShowLayer(CanData *anim, CanAnimationState *state, int layer, bool show) {
+	CanAnimation *entry = &anim->entries[state->current_animation];
+	for (int i = 0; i < entry->layers_count; ++i) {
+		if (entry->layers[i].num == layer) {
+			entry->layers[i].hidden = !show;
+		}
+	}
+}
+
+void Can_BlendLayer(CanData *anim, CanAnimationState *state, int layer, float f, int a) {
+	CanAnimation *entry = &anim->entries[state->current_animation];
+	for (int i = 0; i < entry->layers_count; ++i) {
+		if (entry->layers[i].num == layer) {
+			warning("Unimplemented blendLayer hidden:%d val:%f %d", entry->layers[i].hidden, f, a);
+		}
+	}
 }

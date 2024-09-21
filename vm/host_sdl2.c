@@ -10,15 +10,26 @@ SDL_Surface *g_background;
 #define IMAGES_COUNT 32
 
 static HostImage _images[IMAGES_COUNT];
-static int _imagesCount;
+static int _imagesCount = 1; /* handle #0 as NULL */
 
 int Host_ImageNew() {
 	const int num = _imagesCount;
-	assert(num < IMAGES_COUNT);
-	HostImage *img = &_images[_imagesCount++];
+	HostImage *img = 0;
+	if (num < IMAGES_COUNT) {
+		img = &_images[num];
+		++_imagesCount;
+	} else {
+		for (int i = 1; i < IMAGES_COUNT; ++i) {
+			if (_images[i].handle == 0) {
+				img = &_images[i];
+				break;
+			}
+		}
+		assert(img);
+	}
 	memset(img, 0, sizeof(HostImage));
-	img->handle = num;
-	return num;
+	img->handle = img - _images;
+	return img->handle;
 }
 
 void Host_ImageCreate(int handle, int w, int h, int depth) {
@@ -28,15 +39,17 @@ void Host_ImageCreate(int handle, int w, int h, int depth) {
 }
 
 void Host_ImageDelete(int handle) {
-	HostImage *img = Host_ImageGet(handle);
-	if (img->s) {
-		SDL_FreeSurface(img->s);
+	if (handle != 0) {
+		HostImage *img = Host_ImageGet(handle);
+		if (img->s) {
+			SDL_FreeSurface(img->s);
+		}
+		memset(img, 0, sizeof(HostImage));
 	}
-	memset(img, 0, sizeof(HostImage));
 }
 
 HostImage *Host_ImageGet(int handle) {
-	assert(handle >= 0 && handle < IMAGES_COUNT);
+	assert(handle > 0 && handle < IMAGES_COUNT);
 	HostImage *img = &_images[handle];
 	assert(img->handle == handle);
 	return img;
@@ -45,14 +58,25 @@ HostImage *Host_ImageGet(int handle) {
 #define CURSORS_COUNT 32
 
 static HostCursor _cursors[CURSORS_COUNT];
-static int _cursorsCount;
+static int _cursorsCount = 1; /* handle #0 as NULL */
 
 int Host_CursorNew() {
 	const int num  = _cursorsCount;
-	HostCursor *cur = &_cursors[_cursorsCount++];
+	HostCursor *cur = 0;
+	if (num < CURSORS_COUNT) {
+		cur = &_cursors[num];
+		++_cursorsCount;
+	} else {
+		for (int i = 1; i < CURSORS_COUNT; ++i) {
+			if (_cursors[i].handle == 0) {
+				cur = &_cursors[i];
+			}
+		}
+		assert(cur);
+	}
 	memset(cur, 0, sizeof(HostCursor));
-	cur->handle = num;
-	return num;
+	cur->handle = cur - _cursors;
+	return cur->handle;
 }
 
 void Host_CursorCreate(int handle, HostImage *img) {
@@ -62,15 +86,17 @@ void Host_CursorCreate(int handle, HostImage *img) {
 }
 
 void Host_CursorDelete(int handle) {
-	HostCursor *cur = Host_CursorGet(handle);
-	if (cur->c) {
-		SDL_FreeCursor(cur->c);
+	if (handle != 0) {
+		HostCursor *cur = Host_CursorGet(handle);
+		if (cur->c) {
+			SDL_FreeCursor(cur->c);
+		}
+		memset(cur, 0, sizeof(HostCursor));
 	}
-	memset(cur, 0, sizeof(HostCursor));
 }
 
 HostCursor *Host_CursorGet(int handle) {
-	assert(handle >= 0 && handle < CURSORS_COUNT);
+	assert(handle > 0 && handle < CURSORS_COUNT);
 	HostCursor *cur = &_cursors[handle];
 	assert(cur->handle == handle);
 	return cur;
@@ -80,38 +106,50 @@ void Host_SetCursor(HostCursor *cursor) {
 	SDL_SetCursor(cursor->c);
 }
 
-#define SPRITES_COUNT 128
+#define SPRITES_COUNT 64
 
 static HostSprite _sprites[SPRITES_COUNT];
-static int _spritesCount;
+static int _spritesCount = 1; /* handle #0 as NULL */
 
 int Host_SpriteNew() {
 	const int num = _spritesCount;
-	assert(num < SPRITES_COUNT);
-	++_spritesCount;
-	HostSprite *spr = &_sprites[num];
+	HostSprite *spr = 0;
+	if (num < SPRITES_COUNT) {
+		spr = &_sprites[num];
+		++_spritesCount;
+	} else {
+		for (int i = 1; i < SPRITES_COUNT; ++i) {
+			if (_sprites[i].handle == 0) {
+				spr = &_sprites[i];
+				break;
+			}
+		}
+		assert(spr);
+	}
 	memset(spr, 0, sizeof(HostSprite));
-	spr->handle = num;
+	spr->handle = spr - _sprites;
 	spr->rate = 1.;
-	return num;
+	return spr->handle;
 }
 
 void Host_SpriteDelete(int handle) {
-	HostSprite *spr = Host_SpriteGet(handle);
-	if (spr->image) {
-		SDL_FreeSurface(spr->image);
+	if (handle != 0) {
+		HostSprite *spr = Host_SpriteGet(handle);
+		if (spr->image) {
+			SDL_FreeSurface(spr->image);
+		}
+		if (spr->animation_state) {
+			free(spr->animation_state);
+		}
+		if (spr->animation_data) {
+			UnloadCan(spr->animation_data);
+		}
+		memset(spr, 0, sizeof(HostSprite));
 	}
-	if (spr->animation_state) {
-		free(spr->animation_state);
-	}
-	if (spr->animation_data) {
-		UnloadCan(spr->animation_data);
-	}
-	memset(spr, 0, sizeof(HostSprite));
 }
 
 HostSprite *Host_SpriteGet(int handle) {
-	assert(handle >= 0 && handle < SPRITES_COUNT);
+	assert(handle > 0 && handle < SPRITES_COUNT);
 	HostSprite *spr = &_sprites[handle];
 	return spr;
 }
@@ -132,7 +170,7 @@ void Host_SetSpriteAnim(int spr_num, int anim) {
 	}
 	if (spr->animation_state) {
 		Can_Reset(spr->animation_data, spr->animation_state, SDL_GetTicks());
-		spr->animation_state->current_animation = anim;
+		Can_SetAnimation(spr->animation_data, spr->animation_state, anim);
 	}
 }
 
@@ -166,6 +204,13 @@ void Host_GetSpriteSize(int spr_num, int *w, int *h) {
 		if (h) {
 			*h = y2 - y1 + 1;
 		}
+	}
+}
+
+void Host_BlankWindow() {
+	if (g_background) {
+		SDL_FreeSurface(g_background);
+		g_background = 0;
 	}
 }
 

@@ -7,6 +7,12 @@
 struct SDL_SUrface;
 
 typedef struct {
+	int num; /* layer ID */
+	int palette_num;
+	bool hidden;
+} AnimationLayer;
+
+typedef struct {
 	int bitmap_num;
 	int x_pos;
 	int y_pos;
@@ -28,6 +34,7 @@ typedef struct {
 	int layers_count;
 	AnimationFrameLayer *frames;
 	AnimationFrameTrigger *triggers;
+	AnimationLayer *layers;
 	uint32_t offset_layers_id;
 	uint32_t offset_layers_palette;
 } CanAnimation;
@@ -63,13 +70,17 @@ int FindAnimation(CanData *anim, int num);
 int GetAnimationFramesCount(CanData *anim, int num);
 void GetAnimationPos(CanData *anim, int num, int *x, int *y);
 void GetAnimationBounds(CanData *anim, int num, int *x1, int *y1, int *x2, int *y2);
-void GetCanBitmapBounds(CanData *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2);
+void Can_GetFrameBounds(CanData *anim, int num, int frame, int *x1, int *y1, int *x2, int *y2);
 
 void Can_Draw(CanData *anim, int num, int frame, struct SDL_Surface *, int x, int y, int flags);
 void Can_Reset(CanData *anim, CanAnimationState *state, int timestamp);
 void Can_Update(CanData *anim, CanAnimationState *state, int timestamp, float rate);
 bool Can_HasTrigger(CanData *anim, CanAnimationState *state, int frame, int trigger);
 int Can_GetTriggersCount(CanData *anim, CanAnimationState *state, int frame);
+void Can_SetAnimation(CanData *anim, CanAnimationState *state, int num);
+void Can_SetAnimationFrame(CanData *anim, CanAnimationState *state, int frame);
 bool Can_Done(CanData *anim, CanAnimationState *state);
+void Can_ShowLayer(CanData *anim, CanAnimationState *state, int layer, bool show);
+void Can_BlendLayer(CanData *anim, CanAnimationState *state, int layer, float f, int a);
 
 #endif /* CAN_H__ */

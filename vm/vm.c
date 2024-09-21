@@ -164,6 +164,7 @@ static VMScript *prepareCall(VMContext *c, VMScript *script, int class_handle, i
 static void endCall(VMContext *c, VMScript *script) {
 	debug(DBG_VM, "endCall c:%p script:%p", c, script);
 	free(script->local_vars);
+	script->local_vars = 0;
 	VMScript *next = script->next_script;
 	if (next) {
 		endCall(c, next);
@@ -210,7 +211,6 @@ static int executeMethod(VMContext *c, VMScript *script, VMThread *thread, int f
 }
 
 static int startMethod(VMContext *c, int class_handle, int obj_handle, int code_num) {
-
 	VMThread *thread = Thread_New(c);
 	Thread_Start(thread);
 
@@ -231,6 +231,20 @@ static int startMethod(VMContext *c, int class_handle, int obj_handle, int code_
 
 	VM_RemoveThread(c, thread);
 	Thread_Delete(c, thread);
+	return 0;
+}
+
+int VM_StartMethod(VMContext *c, int obj_handle, const char *name) {
+	VMObject *obj = VM_GetObjectFromHandle(c, obj_handle);
+	SobData *sob = ClassHandle_GetSob(c, obj->class_handle);
+	const int num = Sob_FindMethod(sob, name);
+	if (num != 0) {
+		const SobRefEntry *ref = Sob_GetRefMethod(sob, num);
+		if (ref->data_index != 0) {
+			startMethod(c, obj->class_handle, obj_handle, ref->data_index);
+			return 1;
+		}
+	}
 	return 0;
 }
 
@@ -283,7 +297,7 @@ static int invokeMethodInternal(VMContext *c, SobData *sob, int method_num, int 
 		if (ret != 0) {
 			if (start_call == 3) {
 				c->script->state = 5;
-				c->script->thread->unkC = ret;
+				c->script->thread->script_thread_handle = ret;
 			}
 		}
 		return ret;
@@ -495,7 +509,7 @@ int VM_LoadClass(VMContext *context, const char *name, int error_flag) {
 void VM_StartCallback(VMContext *c, int handle, const char *name) {
 	debug(DBG_VM, "VM_StartCallback '%s' handle:%d", name, handle);
 	if (handle >= BASE_HANDLE_OBJECT) {
-		error("op_start_callback not implemented obj_handle:%d", handle);
+		VM_StartMethod(c, handle, name);
 	} else if (handle >= BASE_HANDLE_CLASS) {
 		startStaticClassMethod(c, handle, name);
 	} else {
@@ -505,15 +519,32 @@ void VM_StartCallback(VMContext *c, int handle, const char *name) {
 
 void VM_RunThreads(VMContext *context) {
 	++context->frame_counter;
-	VMThread *thread = context->threads_tail;
+	VMThread *thread = context->threads_head;
 	while (thread) {
 		thread->unk1C = 0;
-		thread = thread->prev;
+		thread = thread->next;
 	}
+	bool changed = false;
+	do {
+		thread = context->threads_head;
+		while (thread) {
+			VMThread *current = thread->next;
+			if (!current) {
+				break;
+			}
+			if (thread->order > current->order) {
+				/* todo */
+				warning("Executing threads out of order");
+				break;
+				// changed = true;
+			}
+			thread = thread->next;
+		}
+	} while (changed);
 	thread = context->threads_head;
 	while (thread) {
 		VMThread *next_thread = thread->next;
-		debug(DBG_VM, "Thread id:%d state:%d", thread->id, thread->state);
+		debug(DBG_VM, "Thread id:%d order:%d state:%d", thread->id, thread->order, thread->state);
 		if (thread->state == SCRIPT_STATE_DEAD) {
 			VM_RemoveThread(context, thread);
 			Thread_Delete(context, thread);
@@ -531,6 +562,15 @@ void VM_RunThreads(VMContext *context) {
 				goto next;
 			}
 			thread->break_time = 0;
+		}
+		if (thread->script_thread_handle != 0) {
+			const int num = thread->script_thread_handle;
+			for (VMThread *current = context->threads_head; current; current = current->next) {
+				if (num == thread->handle) {
+					goto next;
+				}
+			}
+			thread->script_thread_handle = 0;
 		}
 		if (context->sp != 0) {
 			warning("Stack not empty between threads");
@@ -940,8 +980,7 @@ void VM_DeleteObject(VMContext *c, VMObject *obj, int call_delete) {
 			if (c->script) {
 				VM_InvokeMethod(c, sob, num, obj->handle, 0, 0, 0);
 			} else {
-				/* todo */
-				warning("VM_DeleteObject NULL c->script not handled");
+				VM_StartMethod(c, obj->handle, "_delete_()V");
 			}
 		}
 		stopThreadByObject(c, obj->handle, 0);
