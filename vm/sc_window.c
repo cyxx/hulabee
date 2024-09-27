@@ -81,28 +81,28 @@ static void fn_window_mode_mangle_rgb(VMContext *c) {
 }
 
 static void fn_window_draw(VMContext *c) {
-	const int arg4 = VM_PopInt32(c);
-	const int arg3 = VM_PopInt32(c);
-	const int arg2 = VM_PopInt32(c);
-	const int arg1 = VM_PopInt32(c);
+	const int y = VM_PopInt32(c);
+	const int x = VM_PopInt32(c);
+	int frame = VM_PopInt32(c);
+	int anim = VM_PopInt32(c);
 	const int asset = VM_PopInt32(c);
-	debug(DBG_SYSCALLS, "Window:draw asset:%d %d %d %d %d", asset, arg1, arg2, arg3, arg4);
-	assert(g_background);
+	debug(DBG_SYSCALLS, "Window:draw asset:%d %d %d %d %d", asset, anim, frame, x, y);
+	SDL_Surface *dst = g_background;
 	PanBuffer pb;
 	if (Pan_LoadAssetById(asset, &pb)) {
 		const int type = Pan_GetAssetType(asset);
 		if (type == PAN_ASSET_TYPE_CAN) {
 			CanData *data = LoadCan(pb.buffer, pb.size);
 			if (data) {
-				int anim = 0;
-				if (arg1 != -1) {
-					anim = FindAnimation(data, arg1);
+				if (anim == -1) {
+					anim = 0;
+				} else {
+					anim = FindAnimation(data, anim);
 				}
-				int frame = 0;
-				if (arg2 != -1) {
-					frame = arg2;
+				if (frame == -1) {
+					frame = 0;
 				}
-				Can_Draw(data, anim, frame, g_background, 0 /* x */, 0 /* y */, 0 /* flags */);
+				Can_Draw(data, anim, frame, dst, x, y, 0 /* flags */);
 				UnloadCan(data);
 			}
 		} else {

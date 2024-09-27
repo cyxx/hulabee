@@ -3,6 +3,26 @@
 #include "util.h"
 #include "vm.h"
 
+static const struct {
+	const char *name;
+	uint32_t value;
+} _COLORS[] = {
+	{ "red", 0x0000C0 },
+	{ "green", 0x00C000 },
+	{ "blue", 0xC00000 },
+	{ "bright red", 0x0000FF },
+	{ "bright green", 0x00FF00 },
+	{ "bright blue", 0xFF0000 },
+	{ "yellow", 0x00FFFF },
+	{ "cyan", 0xFFFF00 },
+	{ "violet", 0xFF00FF },
+	{ "black", 0x000000 },
+	{ "light grey", 0xC0C0C0 },
+	{ "dark grey", 0x646464 },
+	{ "brown", 0x004080 },
+	{ 0, 0 }
+};
+
 VMContext *VM_NewContext() {
 	VMContext *c = (VMContext *)calloc(1, sizeof(VMContext));
 	if (c) {
@@ -19,13 +39,72 @@ VMContext *VM_NewContext() {
 		for (int i = 1; i < VMTHREADS_COUNT - 1; ++i) {
 			c->threads[i].next_free = i + 1;
 		}
+		c->thread_handle_counter = BASE_HANDLE_THREAD;
 		c->gameID = -1; /* to handle bytecode and syscalls differences */
+		c->thread_handle_counter = BASE_HANDLE_THREAD;
+		for (int i = 0; _COLORS[i].name; ++i) {
+			VM_DefineInt(c, _COLORS[i].name, _COLORS[i].value);
+		}
 	}
 	return c;
 }
 
 void VM_FreeContext(VMContext *c) {
 	free(c);
+}
+
+void VM_DefineInt(VMContext *c, const char *name, uint32_t value) {
+	/* todo */
+}
+
+void VM_DefineVar(VMContext *c, const char *name, const char *val) {
+	assert(c->env_vars_count < ENVVARS_SIZE);
+	struct vmenvvar_t *var = &c->env_vars[c->env_vars_count++];
+	var->name = name;
+	var->value = strdup(val);
+}
+
+static int copy_var(VMContext *c, const char *var_name, char *out, int offset, int len) {
+	for (int var = 0; var < c->env_vars_count; ++var) {
+		if (strcmp(var_name, c->env_vars[var].name) == 0) {
+			const char *p = c->env_vars[var].value;
+			assert(offset + strlen(p) < len);
+			strcpy(out + offset, p);
+			return offset + strlen(p);
+		}
+	}
+	warning("Unknown variable '%s'", var_name);
+	return offset;
+}
+
+void VM_ReplaceVar(VMContext *c, const char *s, char *out, int len) {
+	char var_name[32];
+	int state = 0;
+	int j = 0, k = 0;
+	for (int i = 0; s[i] && j < len - 1; ++i) {
+		if (state == 0) {
+			if (s[i] == '$') {
+				state = 1;
+			} else {
+				out[j++] = s[i];
+			}
+		} else if (state == 1) {
+			if (strchr("/\\", s[i])) {
+				var_name[k] = 0;
+				j = copy_var(c, var_name, out, j, len);
+				out[j++] = '/';
+				state = 0;
+			} else {
+				assert(k < sizeof(var_name) - 1);
+				var_name[k++] = s[i];
+			}
+		}
+	}
+	if (state == 1) {
+		var_name[k] = 0;
+		copy_var(c, var_name, out, j, len);
+	}
+	out[j] = 0;
 }
 
 void VM_SetGameID(VMContext *c, int gameID) {
@@ -263,7 +342,7 @@ static int callMethod(VMContext *c, VMScript *parent, int class_handle, int obj_
 	}
 	parent->next_script = &script;
 	const int ret = executeMethod(c, &script, parent->thread, 1);
-	if (ret == 5) {
+	if (ret == SCRIPT_STATE_YIELD) {
 		error("Non script method did a breakhere");
 	}
 	parent->next_script = 0;
@@ -296,7 +375,7 @@ static int invokeMethodInternal(VMContext *c, SobData *sob, int method_num, int 
 		const int ret = startMethod(c, class_handle, obj_handle, code_num);
 		if (ret != 0) {
 			if (start_call == 3) {
-				c->script->state = 5;
+				c->script->state = SCRIPT_STATE_YIELD;
 				c->script->thread->script_thread_handle = ret;
 			}
 		}
@@ -544,7 +623,7 @@ void VM_RunThreads(VMContext *context) {
 	thread = context->threads_head;
 	while (thread) {
 		VMThread *next_thread = thread->next;
-		debug(DBG_VM, "Thread id:%d order:%d state:%d", thread->id, thread->order, thread->state);
+		debug(DBG_VM, "Thread handle:%d id:%d order:%d state:%d", thread->handle, thread->id, thread->order, thread->state);
 		if (thread->state == SCRIPT_STATE_DEAD) {
 			VM_RemoveThread(context, thread);
 			Thread_Delete(context, thread);
@@ -566,7 +645,7 @@ void VM_RunThreads(VMContext *context) {
 		if (thread->script_thread_handle != 0) {
 			const int num = thread->script_thread_handle;
 			for (VMThread *current = context->threads_head; current; current = current->next) {
-				if (num == thread->handle) {
+				if (num == current->handle) {
 					goto next;
 				}
 			}
@@ -927,7 +1006,7 @@ void VM_RemoveThread(VMContext *c, VMThread *thread) {
 }
 
 static void stopThreadByObject(VMContext *c, int obj_handle, int thread_num) {
-	for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
+	for (VMThread *thread = c->threads_head; thread; thread = thread->next) {
 		VMScript *script = thread->script;
 		if (script->obj_handle == obj_handle && thread->id != thread_num) {
 			const uint32_t offset = thread->labels[0];
@@ -945,7 +1024,7 @@ void VM_StopThread(VMContext *c, int num, int handle) {
 	if (num >= 3000000 && num <= 3999999) {
 		stopThreadByObject(c, num, handle);
 	} else {
-		for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
+		for (VMThread *thread = c->threads_head; thread; thread = thread->next) {
 			if (num == thread->id || num == thread->handle) {
 				if (thread->id != handle) {
 					const uint32_t offset = thread->labels[0];
@@ -964,7 +1043,7 @@ void VM_StopThread(VMContext *c, int num, int handle) {
 
 int VM_CountThreads(VMContext *c, int num) {
 	int count = 0;
-	for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
+	for (VMThread *thread = c->threads_head; thread; thread = thread->next) {
 		if (num == thread->id) {
 			++count;
 		}

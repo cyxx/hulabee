@@ -72,13 +72,15 @@ static void fn_input_get_right_button(VMContext *c) {
 }
 
 static void fn_input_get_left_click(VMContext *c) {
-	debug(DBG_SYSCALLS, "Input:leftClick");
-	VM_Push(c, Host_GetLeftClick(), VAR_TYPE_INT32);
+	const int click = Host_GetLeftClick();
+	debug(DBG_SYSCALLS, "Input:leftClick %d", click);
+	VM_Push(c, click, VAR_TYPE_INT32);
 }
 
 static void fn_input_get_right_click(VMContext *c) {
-	debug(DBG_SYSCALLS, "Input:rightClick()");
-	VM_Push(c, Host_GetRightClick(), VAR_TYPE_INT32);
+	const int click = Host_GetRightClick();
+	debug(DBG_SYSCALLS, "Input:rightClick %d", click);
+	VM_Push(c, click, VAR_TYPE_INT32);
 }
 
 static void fn_input_show_cursor(VMContext *c) {

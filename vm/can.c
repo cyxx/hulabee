@@ -325,9 +325,10 @@ void Can_Update(CanData *anim, CanAnimationState *state, int timestamp, float ra
 
 bool Can_HasTrigger(CanData *anim, CanAnimationState *state, int frame, int trigger) {
 	CanAnimation *entry = &anim->entries[state->current_animation];
+	assert(frame >= 0 && frame < entry->frames_count);
 	const int triggers_count = entry->triggers[frame].count;
 	if (triggers_count != 0) {
-		const uint8_t *p = anim->data + entry->triggers[state->current_frame].offset;
+		const uint8_t *p = anim->data + entry->triggers[frame].offset;
 		for (int i = 0; i < triggers_count; ++i, p += 4) {
 			if (READ_LE_UINT32(p) == trigger) {
 				return true;
@@ -339,6 +340,7 @@ bool Can_HasTrigger(CanData *anim, CanAnimationState *state, int frame, int trig
 
 int Can_GetTriggersCount(CanData *anim, CanAnimationState *state, int frame) {
 	CanAnimation *entry = &anim->entries[state->current_animation];
+	assert(frame >= 0 && frame < entry->frames_count);
 	const int triggers_count = entry->triggers[frame].count;
 	return triggers_count;
 }

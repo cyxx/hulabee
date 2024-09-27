@@ -2,23 +2,17 @@
 #include "util.h"
 #include "vm.h"
 
-VMThread *VM_GetThreadFromHandle(VMContext *c, int num) {
-	const int x = num - BASE_HANDLE_THREAD;
-	if (x < 0 || x >= VMTHREADS_COUNT) {
-		error("Thread handle %d out of range (%d..%d)", num, BASE_HANDLE_THREAD, BASE_HANDLE_THREAD + VMTHREADS_COUNT);
-	}
-	VMThread *thread = &c->threads[x];
-	assert(thread->handle == num);
-	return thread;
-}
-
 VMThread *Thread_New(VMContext *c) {
 	assert(c->threads_next_free != 0);
 	const int num = c->threads_next_free;
 	VMThread *thread = &c->threads[num];
 	c->threads_next_free = thread->next_free;
 	memset(thread, 0, sizeof(VMThread));
-	thread->handle = BASE_HANDLE_THREAD + num;
+	++c->thread_handle_counter;
+	if (c->thread_handle_counter > BASE_HANDLE_THREAD + 1999999) {
+		error("Thread handle %d overflow", c->thread_handle_counter);
+	}
+	thread->handle = thread->id = c->thread_handle_counter;
 	return thread;
 }
 
@@ -49,7 +43,7 @@ void ThreadHandle_GoTo(VMContext *c, int handle, int num) {
 		error("define goto %d out of range (1...%d)", num, 7);
 		return;
 	}
-	for (VMThread *thread = c->threads_tail; thread; thread = thread->prev) {
+	for (VMThread *thread = c->threads_head; thread; thread = thread->next) {
 		if ((handle == 0 || thread->id == handle) && thread->labels[num] != 0) {
 			thread->script->code_offset = thread->labels[num];
 			thread->break_counter = 0;
@@ -59,10 +53,8 @@ void ThreadHandle_GoTo(VMContext *c, int handle, int num) {
 }
 
 int ThreadHandle_FindId(VMContext *c, int handle) {
-	VMThread *thread = VM_GetThreadFromHandle(c, handle);
-	for (VMThread *current = c->threads_head; current; current = current->prev) {
+	for (VMThread *current = c->threads_head; current; current = current->next) {
 		if (current->handle == handle) {
-			assert(current == thread);
 			return current->id;
 		}
 	}

@@ -8,7 +8,7 @@ static void op_nop(VMContext *) {
 
 static void op_breakhere(VMContext *c) {
 	debug(DBG_OPCODES, "op_breakhere");
-	c->script->state = 5;
+	c->script->state = SCRIPT_STATE_YIELD;
 }
 
 static void op_jump(VMContext *c) {
@@ -943,8 +943,8 @@ static void op_running(VMContext *c) {
 }
 
 static void op_threadid(VMContext *c) {
-	debug(DBG_OPCODES, "op_threadid");
 	VMVar st = VM_Pop2(c);
+	debug(DBG_OPCODES, "op_threadid id:%d", st.value);
 	if (st.value == -1) {
 		VM_Push(c, c->script->thread->id, VAR_TYPE_INT32);
 	} else {
@@ -1242,7 +1242,7 @@ static void op_breakmany(VMContext *c) {
 	const int count = VM_PopInt32(c);
 	debug(DBG_OPCODES, "op_breakmany count:%d", count);
 	c->script->thread->break_counter = count;
-	c->script->state = 5;
+	c->script->state = SCRIPT_STATE_YIELD;
 }
 
 static void op_breaktime(VMContext *c) {
@@ -1250,7 +1250,7 @@ static void op_breaktime(VMContext *c) {
 	debug(DBG_OPCODES, "op_breaktime delta:%f", delta);
 	c->script->thread->break_time = (*c->get_timer)() + (int)(delta * 1000.);
 	c->script->thread->break_counter = 0;
-	c->script->state = 5;
+	c->script->state = SCRIPT_STATE_YIELD;
 }
 
 static void op_delete_array(VMContext *c) {
@@ -1260,8 +1260,8 @@ static void op_delete_array(VMContext *c) {
 }
 
 static void op_setthreadid(VMContext *c) {
-	debug(DBG_OPCODES, "op_setthreadid");
 	const int id = VM_PopInt32(c);
+	debug(DBG_OPCODES, "op_setthreadid id:%d", id);
 	c->script->thread->id = id;
 }
 

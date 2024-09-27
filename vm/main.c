@@ -178,6 +178,9 @@ int main(int argc, char *argv[]) {
 			c->get_timer = Host_GetTimer;
 			VM_InitOpcodes();
 			VM_InitSyscalls(c);
+			VM_DefineVar(c, "game", dataPath);
+			VM_DefineVar(c, "system", dataPath);
+			VM_DefineVar(c, "user", ".");
 			Host_Init(version ? version->name : "", _windowW, _windowH);
 			VM_RunMainBoot(c, _bootClass ? _bootClass : gameName, "");
 			Host_MainLoop(50, (UpdateProc)VM_RunThreads, c);

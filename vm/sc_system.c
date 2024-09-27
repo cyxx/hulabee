@@ -89,7 +89,13 @@ static void fn_system_set_ini_string(VMContext *c) {
 	const char *key = VM_PopString(c);
 	const char *section = VM_PopString(c);
 	const char *filename = VM_PopString(c);
-	warning("Unimplemented System:setINI %s %s %s %s", filename, section, key, val);
+	char path[1024];
+	if (filename) {
+		VM_ReplaceVar(c, filename, path, sizeof(path));
+	} else {
+		path[0] = 0;
+	}
+	warning("Unimplemented System:setINI %s (%s) %s %s %s", path, filename, section, key, val);
 }
 
 static void fn_system_get_ini_string(VMContext *c) {
@@ -97,7 +103,13 @@ static void fn_system_get_ini_string(VMContext *c) {
 	const char *key = VM_PopString(c);
 	const char *section = VM_PopString(c);
 	const char *filename = VM_PopString(c);
-	warning("Unimplemented System:getINI %s %s %s %s", filename, section, key, val);
+	char path[1024];
+	if (filename) {
+		VM_ReplaceVar(c, filename, path, sizeof(path));
+	} else {
+		path[0] = 0;
+	}
+	warning("Unimplemented System:getINI %s (%s) %s %s %s", path, filename, section, key, val);
 	if (c->gameID == GID_MOOP || c->gameID == GID_OLLO) {
 		if (strcmp(section, "Debug") == 0 && strcmp(key, "EnableCheatKeys") == 0) {
 			val = "100801";

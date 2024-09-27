@@ -123,7 +123,7 @@ static void fn_sprite_frame(VMContext *c) {
 		if (frame != 0) {
 			Can_SetAnimationFrame(spr->animation_data, spr->animation_state, frame - 1);
 		} else {
-			error("Unhandled Sprite:frame 0");
+			error("Unhandled Sprite:frame frame:0");
 		}
 	}
 }
@@ -166,7 +166,7 @@ static void fn_sprite_get_frame(VMContext *c) {
 	HostSprite *spr = Host_SpriteGet(sprite_num);
 	int frame = 0;
 	if (spr->animation_state) {
-		frame = spr->animation_state->current_frame;
+		frame = spr->animation_state->current_frame + 1;
 	}
 	VM_Push(c, frame, VAR_TYPE_INT32);
 }

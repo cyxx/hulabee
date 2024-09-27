@@ -208,17 +208,11 @@ void Host_GetSpriteSize(int spr_num, int *w, int *h) {
 }
 
 void Host_BlankWindow() {
-	if (g_background) {
-		SDL_FreeSurface(g_background);
-		g_background = 0;
-	}
+	SDL_FillRect(g_background, 0, SDL_MapRGB(g_background->format, 0x00, 0x00, 0x00));
 }
 
 void Host_SetWindowBackground(SDL_Surface *s) {
-	if (g_background) {
-		SDL_FreeSurface(g_background);
-	}
-	g_background = SDL_DuplicateSurface(s);
+	SDL_BlitSurface(s, 0, g_background, 0);
 }
 
 uint32_t Host_GetTimer() {
@@ -228,7 +222,7 @@ uint32_t Host_GetTimer() {
 	return SDL_GetTicks();
 }
 
-static int _prevButtons, _currentButtons;
+static uint32_t _prevButtons, _currentButtons;
 
 int Host_GetLeftClick() {
 	return (_prevButtons & SDL_BUTTON_LEFT) != 0 && (_currentButtons & SDL_BUTTON_LEFT) == 0;
@@ -251,6 +245,7 @@ void Host_ResetKey() {
 void Host_Init(const char *window_name, int window_w, int window_h) {
 	SDL_Init(SDL_INIT_VIDEO);
 	g_window = SDL_CreateWindow(window_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_w, window_h, 0 /* flags */);
+	g_background = SDL_CreateRGBSurface(SDL_SWSURFACE, window_w, window_h, 32, 0xFF, 0xFF00, 0xFF0000, 0x00);
 }
 
 void Host_Fini() {
@@ -275,10 +270,7 @@ static int compareSpriteOrder(const void *a, const void *b) {
 
 static void draw() {
 	SDL_Surface *screen = SDL_GetWindowSurface(g_window);
-	SDL_FillRect(screen, 0, SDL_MapRGB(screen->format, 0x00, 0x00, 0x00));
-	if (g_background) {
-		SDL_BlitSurface(g_background, 0, screen, 0);
-	}
+	SDL_BlitSurface(g_background, 0, screen, 0);
 	HostSprite sprites[SPRITES_COUNT];
 	memcpy(sprites, _sprites, _spritesCount * sizeof(HostSprite));
 	qsort(sprites, _spritesCount, sizeof(HostSprite), compareSpriteOrder);

@@ -6,11 +6,12 @@
 #include "sob.h"
 
 #define SYSCALLS_COUNT   192
-#define VMCLASSES_COUNT 1024
-#define VMARRAYS_COUNT  1024
+#define VMCLASSES_COUNT  256
+#define VMARRAYS_COUNT  4096
 #define VMOBJECTS_COUNT 1024
 #define VMTHREADS_COUNT  128
 #define VMSTACK_SIZE    1024
+#define ENVVARS_SIZE       3
 
 enum {
 	VAR_TYPE_BYTE   = 4,
@@ -34,7 +35,7 @@ enum {
 	SCRIPT_STATE_SUSPEND = 2,
 	SCRIPT_STATE_DEAD    = 3,
 	SCRIPT_STATE_ENDED   = 4,
-	// SCRIPT_STATE_BREAK = 5
+	SCRIPT_STATE_YIELD   = 5
 };
 
 struct SobData;
@@ -124,6 +125,11 @@ typedef struct vmscript_t {
 	VMVar *local_vars;
 } VMScript;
 
+struct vmenvvar_t {
+	const char *name;
+	char *value;
+};
+
 typedef struct vmcontext_t {
 	int syscalls_count;
 	VMSyscall syscalls[SYSCALLS_COUNT];
@@ -144,11 +150,17 @@ typedef struct vmcontext_t {
 	int frame_counter;
 	int method_call_depth;
 	VMThread *threads_head, *threads_tail;
+	int thread_handle_counter;
 	uint32_t (*get_timer)();
+	struct vmenvvar_t env_vars[ENVVARS_SIZE];
+	int env_vars_count;
 } VMContext;
 
 VMContext *VM_NewContext();
 void VM_FreeContext(VMContext *);
+void VM_DefineInt(VMContext *, const char *name, uint32_t value);
+void VM_DefineVar(VMContext *, const char *name, const char *val);
+void VM_ReplaceVar(VMContext *c, const char *s, char *out, int len);
 void VM_SetGameID(VMContext *, int gameID);
 void VM_InitSyscalls();
 void VM_RegisterSyscalls(VMContext *, const VMSyscall *);
@@ -221,7 +233,6 @@ void ArrayHandle_UpperString(VMContext *c, int array);
 void ArrayHandle_Delete(VMContext *c, int handle);
 
 // vm_thread
-VMThread *VM_GetThreadFromHandle(VMContext *c, int num);
 VMThread *Thread_New(VMContext *c);
 void Thread_Delete(VMContext *c, VMThread *);
 void Thread_Start(VMThread *);

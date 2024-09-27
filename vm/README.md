@@ -26,6 +26,7 @@ The code depends on [libjpeg-turbo](https://www.libjpeg-turbo.org/) and [SDL2](h
 
 ## Missing Features
 
+* Captions
 * Load/Save
 * Sound
 * VM GC

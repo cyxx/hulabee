@@ -3,15 +3,27 @@
 #include "vm.h"
 
 static void fn_file_open(VMContext *c) {
-	const int a = VM_PopInt32(c);
+	const int mode = VM_PopInt32(c);
 	const char *name = VM_PopString(c);
-	warning("Unimplemented File:open '%s' %d", name, a);
+	char path[1024];
+	if (name) {
+		VM_ReplaceVar(c, name, path, sizeof(path));
+	} else {
+		path[0] = 0;
+	}
+	warning("Unimplemented File:open '%s' (%s) %d", path, name, mode);
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
 static void fn_file_exists(VMContext *c) {
 	const char *name = VM_PopString(c);
-	warning("Unimplemented File:exists '%s'", name);
+	char path[1024];
+	if (name) {
+		VM_ReplaceVar(c, name, path, sizeof(path));
+	} else {
+		path[0] = 0;
+	}
+	warning("Unimplemented File:exists '%s' (%s)", path, name);
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
@@ -26,7 +38,13 @@ static void fn_file_get_list(VMContext *c) {
 
 static void fn_file_create_directory(VMContext *c) {
 	const char *name = VM_PopString(c);
-	warning("Unimplemented File:createDirectory '%s'", name);
+	char path[1024];
+	if (name) {
+		VM_ReplaceVar(c, name, path, sizeof(path));
+	} else {
+		path[0] = 0;
+	}
+	warning("Unimplemented File:createDirectory '%s' (%s)", path, name);
 	VM_Push(c, 0, VAR_TYPE_INT32);
 }
 
