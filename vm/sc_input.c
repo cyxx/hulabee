@@ -29,11 +29,13 @@ static void fn_input_set_cursor(VMContext *c) {
 
 static void fn_input_get_shift_key(VMContext *c) {
 	const int state = (SDL_GetModState() & KMOD_SHIFT) != 0;
+	debug(DBG_SYSCALLS, "input:getShiftState %d", state);
 	VM_Push(c, state, VAR_TYPE_INT32);
 }
 
 static void fn_input_get_ctrl_key(VMContext *c) {
 	const int state = (SDL_GetModState() & KMOD_CTRL) != 0;
+	debug(DBG_SYSCALLS, "input:getCtrlState %d", state);
 	VM_Push(c, state, VAR_TYPE_INT32);
 }
 

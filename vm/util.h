@@ -15,6 +15,8 @@ enum {
 	DBG_IMG      = 1 << 7,
 	DBG_CAN      = 1 << 8,
 	DBG_SYSCALLS = 1 << 9,
+	DBG_FILEIO   = 1 << 10,
+	DBG_MIXER    = 1 << 11,
 };
 
 extern uint32_t g_debugMask;

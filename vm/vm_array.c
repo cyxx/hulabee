@@ -224,6 +224,11 @@ void Array_InsertUpper(VMArray *array, int value) {
 	assert(array->struct_size == 0);
 }
 
+int Array_DeleteLower(VMArray *array) {
+	error("Unimplemented Array_DeleteLower");
+	return 0;
+}
+
 int Array_DeleteUpper(VMArray *array) {
 	if (array->col_lower > array->col_upper || (array->type == VAR_TYPE_CHAR && array->col_lower == array->col_upper)) {
 		return 0;

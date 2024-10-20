@@ -664,11 +664,11 @@ static void op_push_string(VMContext *c) {
 static void op_add_str(VMContext *c) {
 	VMVar st2 = VM_Pop2(c);
 	VMVar st1 = VM_Pop2(c);
-	if (st1.type != 0x10005 && st1.value != 0 && (st1.type & 0xFF) != 12 && (st1.type & 0xFF) != 10) {
-		error("Can't convert from %s to %s", VM_GetVarTypeName(st1.type), VM_GetVarTypeName(0x10005));
+	if (st1.type != (0x10000 | VAR_TYPE_CHAR) && st1.value != 0 && (st1.type & 0xFF) != 12 && (st1.type & 0xFF) != 10) {
+		error("Can't convert from %s to %s", VM_GetVarTypeName(st1.type), VM_GetVarTypeName(0x10000 | VAR_TYPE_CHAR));
 	}
-	if (st2.type != 0x10005 && st2.value != 0 && (st2.type & 0xFF) != 12 && (st2.type & 0xFF) != 10) {
-		error("Can't convert from %s to %s", VM_GetVarTypeName(st2.type), VM_GetVarTypeName(0x10005));
+	if (st2.type != (0x10000 | VAR_TYPE_CHAR) && st2.value != 0 && (st2.type & 0xFF) != 12 && (st2.type & 0xFF) != 10) {
+		error("Can't convert from %s to %s", VM_GetVarTypeName(st2.type), VM_GetVarTypeName(0x10000 | VAR_TYPE_CHAR));
 	}
 	int array = ArrayHandle_AddString(c, st1.value, st2.value);
 	VM_Push(c, array, 0x10000 | VAR_TYPE_CHAR);
@@ -981,8 +981,7 @@ static void op_max_int(VMContext *c) {
 
 static void op_dup(VMContext *c) {
 	debug(DBG_OPCODES, "op_dup");
-	VMVar a = VM_Pop2(c);
-	VM_Push(c, a.value, a.type);
+	VMVar a = VM_Top2(c);
 	VM_Push(c, a.value, a.type);
 }
 
@@ -1009,6 +1008,17 @@ static void op_insert_upper(VMContext *c) {
 	assert(array->struct_size == 0);
 	VMVar st2 = VM_Pop2(c);
 	Array_InsertUpper(array, st2.value);
+}
+
+static void op_delete_lower(VMContext *c) {
+	debug(DBG_OPCODES, "op_delete_lower");
+	VMVar st = VM_Pop2(c);
+	if ((st.type & 0x10000) == 0) {
+		error("Calling array operator on type %s", VM_GetVarTypeName(st.type));
+	}
+	VMArray *array = VM_GetArrayFromHandle(c, st.value);
+	const int value = Array_DeleteLower(array);
+	VM_Push(c, value, array->type);
 }
 
 static void op_delete_upper(VMContext *c) {
@@ -1303,11 +1313,11 @@ static void op_check_index(VMContext *c) {
 static void op_strcat(VMContext *c) {
 	VMVar st2 = VM_Pop2(c);
 	VMVar st1 = VM_Pop2(c);
-	if (st1.type != 0x10005 && st1.value != 0 && (st1.type & 0xFF) != 12 && (st1.type & 0xFF) != 10) {
-		error("Can't convert from %s to %s", VM_GetVarTypeName(st1.type), VM_GetVarTypeName(0x10005));
+	if (st1.type != (0x10000 | VAR_TYPE_CHAR) && st1.value != 0 && (st1.type & 0xFF) != 12 && (st1.type & 0xFF) != 10) {
+		error("Can't convert from %s to %s", VM_GetVarTypeName(st1.type), VM_GetVarTypeName(0x10000 | VAR_TYPE_CHAR));
 	}
-	if (st2.type != 0x10005 && st2.value != 0 && (st2.type & 0xFF) != 12 && (st2.type & 0xFF) != 10) {
-		error("Can't convert from %s to %s", VM_GetVarTypeName(st2.type), VM_GetVarTypeName(0x10005));
+	if (st2.type != (0x10000 | VAR_TYPE_CHAR) && st2.value != 0 && (st2.type & 0xFF) != 12 && (st2.type & 0xFF) != 10) {
+		error("Can't convert from %s to %s", VM_GetVarTypeName(st2.type), VM_GetVarTypeName(0x10000 | VAR_TYPE_CHAR));
 	}
 	ArrayHandle_ConcatString(c, st1.value, st2.value);
 }
@@ -1543,6 +1553,7 @@ void VM_InitOpcodes() {
 	_opcodes[0x6c] = &op_dup;
 	_opcodes[0x6d] = &op_streq;
 	_opcodes[0x70] = &op_insert_upper;
+	_opcodes[0x71] = &op_delete_lower;
 	_opcodes[0x72] = &op_delete_upper;
 	_opcodes[0x73] = &op_class_handle;
 	_opcodes[0x74] = &op_class_name;

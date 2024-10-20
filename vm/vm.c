@@ -58,53 +58,6 @@ void VM_DefineInt(VMContext *c, const char *name, uint32_t value) {
 }
 
 void VM_DefineVar(VMContext *c, const char *name, const char *val) {
-	assert(c->env_vars_count < ENVVARS_SIZE);
-	struct vmenvvar_t *var = &c->env_vars[c->env_vars_count++];
-	var->name = name;
-	var->value = strdup(val);
-}
-
-static int copy_var(VMContext *c, const char *var_name, char *out, int offset, int len) {
-	for (int var = 0; var < c->env_vars_count; ++var) {
-		if (strcmp(var_name, c->env_vars[var].name) == 0) {
-			const char *p = c->env_vars[var].value;
-			assert(offset + strlen(p) < len);
-			strcpy(out + offset, p);
-			return offset + strlen(p);
-		}
-	}
-	warning("Unknown variable '%s'", var_name);
-	return offset;
-}
-
-void VM_ReplaceVar(VMContext *c, const char *s, char *out, int len) {
-	char var_name[32];
-	int state = 0;
-	int j = 0, k = 0;
-	for (int i = 0; s[i] && j < len - 1; ++i) {
-		if (state == 0) {
-			if (s[i] == '$') {
-				state = 1;
-			} else {
-				out[j++] = s[i];
-			}
-		} else if (state == 1) {
-			if (strchr("/\\", s[i])) {
-				var_name[k] = 0;
-				j = copy_var(c, var_name, out, j, len);
-				out[j++] = '/';
-				state = 0;
-			} else {
-				assert(k < sizeof(var_name) - 1);
-				var_name[k++] = s[i];
-			}
-		}
-	}
-	if (state == 1) {
-		var_name[k] = 0;
-		copy_var(c, var_name, out, j, len);
-	}
-	out[j] = 0;
 }
 
 void VM_SetGameID(VMContext *c, int gameID) {
@@ -693,7 +646,7 @@ void VM_CheckVarType(int type) {
 	type &= 0xFF;
 	if (type != 12) {
 		if (type <= 0 || type >= 11) {
-			error("Illegal variable type");
+			error("Illegal variable type:%d", type);
 		}
 	}
 }

@@ -21,12 +21,10 @@ The original game data files (.pan) are required.
 
 ## Compiling
 
-The code depends on [libjpeg-turbo](https://www.libjpeg-turbo.org/) and [SDL2](https://libsdl.org/).
+The code depends on [dr_libs](https://github.com/mackron/dr_libs), [libjpeg-turbo](https://www.libjpeg-turbo.org/) and [SDL2](https://libsdl.org/).
 
 
 ## Missing Features
 
 * Captions
-* Load/Save
-* Sound
 * VM GC

@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include "fileio.h"
 #include "host_sdl2.h"
 #include "ini.h"
 #include "pan.h"
@@ -39,6 +40,39 @@ static const GameVersion _gameVersions[] = {
 	{ 0, -1 },
 };
 
+typedef struct {
+	const char *filename;
+	uint32_t size;
+	uint32_t pan_offset;
+	const GameVersion version;
+} Executable;
+
+static const Executable _executables[] = {
+	{ "autorun.exe", 599708, 0x4E200, { "autorun", GID_MOOP } },
+	{ "autorun.exe", 554328, 0x4E200, { "autorun", GID_OLLO } },
+	{ 0, 0, 0, { 0, -1 } },
+};
+
+static const Executable *FindExecutable(const char *filePath) {
+	struct stat st;
+	if (stat(filePath, &st) == 0 && S_ISREG(st.st_mode)) {
+		for (int i = 0; _executables[i].filename; ++i) {
+			if (st.st_size == _executables[i].size) {
+				FILE *fp = fopen(filePath, "rb");
+				if (fp) {
+					fseek(fp, _executables[i].pan_offset, SEEK_SET);
+					const uint32_t apan = fileRead32LE(fp);
+					fclose(fp);
+					if (apan == 0x4150414E) {
+						return &_executables[i];
+					}
+				}
+			}
+		}
+	}
+	return 0;
+}
+
 static const GameVersion *FindGame(DIR *d, const char *dataPath, char *gameName) {
 	const GameVersion *gameVersion = 0;
 	struct dirent *de;
@@ -50,9 +84,18 @@ static const GameVersion *FindGame(DIR *d, const char *dataPath, char *gameName)
 		if (!ext) {
 			continue;
 		}
+		char path[MAXPATHLEN];
+		snprintf(path, sizeof(path), "%s/%s", dataPath, de->d_name);
 		int gg = 0;
 		if (strcmp(ext + 1, "gg") == 0) {
 			gg = 1;
+		} else if (strcmp(ext + 1, "exe") == 0) {
+			const Executable *exe = FindExecutable(path);
+			if (exe) {
+				Pan_Open(path, exe->pan_offset);
+				strcpy(gameName, exe->version.name);
+				return &exe->version;
+			}
 		} else if (strcmp(ext + 1, "pan") != 0) {
 			continue;
 		}
@@ -77,9 +120,9 @@ static const GameVersion *FindGame(DIR *d, const char *dataPath, char *gameName)
 			continue;
 		}
 		if (gg) {
-			Gg_Open(dataPath, gameName);
+			Gg_Open(path);
 		} else {
-			Pan_Open(dataPath, gameName, num);
+			Pan_Open(path, 0x0);
 		}
 	}
 	for (int i = 0; _gameVersions[i].name; ++i) {
@@ -106,6 +149,7 @@ static void HandleGameIni(const char *section, const char *key, const char *valu
 	} else if (strcmp(section, "General") == 0) {
 		if (strcmp(key, "BootClass") == 0) {
 			_bootClass = strdup(value);
+		} else if (strcmp(key, "DisableSoundSystem") == 0) {
 		}
 	}
 }
@@ -119,7 +163,7 @@ static void ParseGameIni() {
 }
 
 int main(int argc, char *argv[]) {
-	g_debugMask = DBG_INFO | DBG_OPCODES | DBG_PAN | DBG_STACK | DBG_VM | DBG_SOB | DBG_INI | DBG_IMG | DBG_CAN | DBG_SYSCALLS;
+	g_debugMask = DBG_INFO;
 	char *dataPath = 0;
 	if (argc == 2) {
 		// data path as the only command line argument
@@ -178,9 +222,7 @@ int main(int argc, char *argv[]) {
 			c->get_timer = Host_GetTimer;
 			VM_InitOpcodes();
 			VM_InitSyscalls(c);
-			VM_DefineVar(c, "game", dataPath);
-			VM_DefineVar(c, "system", dataPath);
-			VM_DefineVar(c, "user", ".");
+			Fio_Init(dataPath, ".");
 			Host_Init(version ? version->name : "", _windowW, _windowH);
 			VM_RunMainBoot(c, _bootClass ? _bootClass : gameName, "");
 			Host_MainLoop(50, (UpdateProc)VM_RunThreads, c);

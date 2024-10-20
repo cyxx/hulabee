@@ -71,13 +71,14 @@ static int comparePanAsset(const void *a, const void *b) {
 	return pa->id - pb->id;
 }
 
-int Pan_Open(const char *dataPath, const char *gameName, int num) {
-	char path[MAXPATHLEN];
-	snprintf(path, sizeof(path), "%s/%s-%06d.pan", dataPath, gameName, num);
+int Pan_Open(const char *path, uint32_t offset) {
 	FILE *fp = fopen(path, "rb");
 	if (!fp) {
 		warning("Unable to open '%s'", path);
 		return -1;
+	}
+	if (offset != 0) {
+		fseek(fp, offset, SEEK_SET);
 	}
 	const uint32_t signature = fileRead32LE(fp);
 	if (signature != 0x4150414E) { /* APAN */
@@ -105,7 +106,7 @@ int Pan_Open(const char *dataPath, const char *gameName, int num) {
 			PanAsset *asset = &_assets[_assetsCount + i];
 			asset->id = fileRead32LE(fp);
 			asset->type = fileRead32LE(fp);
-			asset->offset = fileRead32LE(fp);
+			asset->offset = offset + fileRead32LE(fp);
 			asset->size = fileRead32LE(fp);
 			fseek(fp, 16, SEEK_CUR); /* MD5 hash */
 			if (asset->id == 1) {
@@ -151,14 +152,12 @@ static const uint32_t GG_TAG1 = 0x74648225;
 static const uint32_t GG_TAG2 = 0x83547502;
 static const uint32_t GG_HEADER_SIZE = 68;
 
-int Gg_Open(const char *dataPath, const char *gameName) {
+int Gg_Open(const char *path) {
 	assert(_filesCount == 0);
-	char path[MAXPATHLEN];
-	snprintf(path, sizeof(path), "%s/%s-000000.gg", dataPath, gameName);
 	struct stat st;
 	if (stat(path, &st) != 0) {
 		warning("Failed to stat '%s'", path);
-		return 1;
+		return -1;
 	}
 	FILE *fp = fopen(path, "rb");
 	if (!fp) {

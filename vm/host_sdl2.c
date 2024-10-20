@@ -2,6 +2,7 @@
 #include "can.h"
 #include "img.h"
 #include "host_sdl2.h"
+#include "mixer.h"
 #include "util.h"
 
 SDL_Window *g_window;
@@ -53,6 +54,14 @@ HostImage *Host_ImageGet(int handle) {
 	HostImage *img = &_images[handle];
 	assert(img->handle == handle);
 	return img;
+}
+
+void Host_ImageDraw(int handle, int x, int y) {
+	HostImage *img = Host_ImageGet(handle);
+	assert(img->s);
+	img->visible = true;
+	img->x = x;
+	img->y = y;
 }
 
 #define CURSORS_COUNT 32
@@ -242,13 +251,42 @@ void Host_ResetKey() {
 	_key = 0;
 }
 
+static const int SAMPLE_RATE = 22050;
+
+static void AudioSamplesCb(void *userdata, uint8_t *data, int len) {
+	assert((len & 3) == 0);
+	Mixer_MixStereoS16((int16_t *)data, len / 4);
+}
+
+static void AudioLock(int flag) {
+	if (flag) {
+		SDL_LockAudio();
+	} else {
+		SDL_UnlockAudio();
+	}
+}
+
 void Host_Init(const char *window_name, int window_w, int window_h) {
 	SDL_Init(SDL_INIT_VIDEO);
 	g_window = SDL_CreateWindow(window_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_w, window_h, 0 /* flags */);
 	g_background = SDL_CreateRGBSurface(SDL_SWSURFACE, window_w, window_h, 32, 0xFF, 0xFF00, 0xFF0000, 0x00);
+	SDL_AudioSpec desired;
+	memset(&desired, 0, sizeof(desired));
+	desired.freq = SAMPLE_RATE;
+	desired.format = AUDIO_S16;
+	desired.channels = 2;
+	desired.samples = 2048;
+	desired.callback = AudioSamplesCb;
+	desired.userdata = 0;
+	if (SDL_OpenAudio(&desired, 0) == 0) {
+		SDL_PauseAudio(0);
+		Mixer_Init(SAMPLE_RATE, AudioLock);
+	}
 }
 
 void Host_Fini() {
+	Mixer_Fini();
+	SDL_CloseAudio();
 	SDL_DestroyWindow(g_window);
 	SDL_Quit();
 }
@@ -271,6 +309,18 @@ static int compareSpriteOrder(const void *a, const void *b) {
 static void draw() {
 	SDL_Surface *screen = SDL_GetWindowSurface(g_window);
 	SDL_BlitSurface(g_background, 0, screen, 0);
+	for (int i = 0; i < _imagesCount; ++i) {
+		HostImage *img = &_images[i];
+		if (img->visible) {
+			SDL_Surface *s = img->s;
+			SDL_Rect dst;
+			dst.x = img->x;
+			dst.y = img->y;
+			dst.w = s->w;
+			dst.h = s->h;
+			SDL_BlitSurface(s, 0, screen, &dst);
+		}
+	}
 	HostSprite sprites[SPRITES_COUNT];
 	memcpy(sprites, _sprites, _spritesCount * sizeof(HostSprite));
 	qsort(sprites, _spritesCount, sizeof(HostSprite), compareSpriteOrder);

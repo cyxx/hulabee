@@ -10,6 +10,8 @@ extern SDL_Surface *g_background;
 
 typedef struct host_image_t {
 	uint32_t handle;
+	int x, y;
+	bool visible;
 	SDL_Surface *s;
 } HostImage;
 
@@ -17,6 +19,7 @@ int Host_ImageNew();
 void Host_ImageCreate(int handle, int w, int h, int depth);
 void Host_ImageDelete(int handle);
 HostImage *Host_ImageGet(int handle);
+void Host_ImageDraw(int handle, int x, int y);
 
 typedef struct host_cursor_t {
 	uint32_t handle;

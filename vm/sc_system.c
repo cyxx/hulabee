@@ -1,4 +1,5 @@
 
+#include "fileio.h"
 #include "host_sdl2.h"
 #include "util.h"
 #include "vm.h"
@@ -75,6 +76,13 @@ static void fn_system_warning(VMContext *c) {
 	warning("%s", msg);
 }
 
+static void fn_system_exec(VMContext *c) {
+	const char *s = VM_PopString(c);
+	const int op = VM_PopInt32(c);
+	warning("Unimplemented System:exec '%s' %d", s, op);
+	VM_Push(c, 1, VAR_TYPE_INT32);
+}
+
 static void fn_system_message_box2(VMContext *c) {
 	const int flags = VM_PopInt32(c);
 	const char *message = VM_PopString(c);
@@ -91,7 +99,7 @@ static void fn_system_set_ini_string(VMContext *c) {
 	const char *filename = VM_PopString(c);
 	char path[1024];
 	if (filename) {
-		VM_ReplaceVar(c, filename, path, sizeof(path));
+		Fio_ResolvePath(filename, path, sizeof(path));
 	} else {
 		path[0] = 0;
 	}
@@ -105,7 +113,7 @@ static void fn_system_get_ini_string(VMContext *c) {
 	const char *filename = VM_PopString(c);
 	char path[1024];
 	if (filename) {
-		VM_ReplaceVar(c, filename, path, sizeof(path));
+		Fio_ResolvePath(filename, path, sizeof(path));
 	} else {
 		path[0] = 0;
 	}
@@ -179,6 +187,7 @@ const VMSyscall _syscalls_system[] = {
 	{ 60004, fn_system_query },
 	{ 60010, fn_system_error },
 	{ 60011, fn_system_warning },
+	{ 60012, fn_system_exec },
 	{ 60016, fn_system_message_box2 },
 	{ 60017, fn_system_set_ini_string },
 	{ 60018, fn_system_get_ini_string },

@@ -115,8 +115,8 @@ static void fn_window_draw(VMContext *c) {
 }
 
 static void fn_window_render_vbl(VMContext *c) {
-	VM_PopInt32(c);
-	warning("Unimplemented Window:renderOnVBlank");
+	const int a = VM_PopInt32(c);
+	warning("Unimplemented Window:renderOnVBlank %d", a);
 }
 
 static void fn_window_title(VMContext *c) {

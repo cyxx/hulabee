@@ -1,5 +1,6 @@
 
 #include "can.h"
+#include "fileio.h"
 #include "host_sdl2.h"
 #include "img.h"
 #include "pan.h"
@@ -38,11 +39,12 @@ static void fn_image_new_image(VMContext *c) {
 }
 
 static void fn_image_draw(VMContext *c) {
+	const int y = VM_PopInt32(c);
+	const int x = VM_PopInt32(c);
+	const int image_num = VM_PopInt32(c);
 	int a = VM_PopInt32(c);
-	int y = VM_PopInt32(c);
-	int x = VM_PopInt32(c);
-	int num = VM_PopInt32(c);
-	warning("Unimplemented Image:draw %d %d %d %d", num, x, y, a);
+	debug(DBG_SYSCALLS, "Image:draw image:%d %d %d %d", image_num, x, y, a);
+	Host_ImageDraw(image_num, x, y);
 }
 
 static void fn_image_image_at(VMContext *c) {
@@ -151,6 +153,26 @@ static void fn_image_destroy(VMContext *c) {
 	Host_ImageDelete(image_num);
 }
 
+static void fn_image_open_bmp(VMContext *c) {
+	const char *filename = VM_PopString(c);
+	char path[1024];
+	if (filename) {
+		Fio_ResolvePath(filename, path, sizeof(path));
+	} else {
+		path[0] = 0;
+	}
+	debug(DBG_SYSCALLS, "Image:open_bmp '%s'", path);
+	SDL_Surface *s = SDL_LoadBMP(path);
+	if (s) {
+		const int image_num = Host_ImageNew();
+		HostImage *img = Host_ImageGet(image_num);
+		img->s = s;
+		VM_Push(c, image_num, VAR_TYPE_INT32);
+	} else {
+		VM_Push(c, 0, VAR_TYPE_INT32);
+	}
+}
+
 const VMSyscall _syscalls_image[] = {
 	{ 100001, fn_image_new_size },
 	{ 100002, fn_image_new_image },
@@ -165,5 +187,6 @@ const VMSyscall _syscalls_image[] = {
 	{ 100026, fn_image_get_y_size },
 	{ 100028, fn_image_pen_color },
 	{ 100031, fn_image_destroy },
+	{ 100035, fn_image_open_bmp },
 	{ -1, 0 }
 };

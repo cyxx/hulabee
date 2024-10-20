@@ -3,10 +3,11 @@
 #include "vm.h"
 
 static void fn_string_split(VMContext *c) {
-	const int array2 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *sep = array2 ? ArrayHandle_GetString(c, array2) : " \t";
-	const int array1 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *str = ArrayHandle_GetString(c, array1);
+	const char *sep = VM_PopString(c);
+	if (!sep) {
+		sep = " \t";
+	}
+	const char *str = VM_PopString(c);
 	debug(DBG_SYSCALLS, "String:split '%s' '%s'", str, sep);
 
 	VMArray *array = Array_New(c);
@@ -16,14 +17,14 @@ static void fn_string_split(VMContext *c) {
 	char *ptr = 0;
 	char *token = strtok_r(tmp, sep, &ptr);
 	if (token) {
-		warning("String:split unimplemented");
-		/* todo */
 		while (1) {
 			token = strtok_r(0, sep, &ptr);
 			if (!token) {
 				break;
 			}
-			/* todo */
+			VMArray *array_token = Array_New(c);
+			Array_SetString(array_token, token);
+			Array_InsertUpper(array, array_token->handle);
 		}
 	}
 	free(tmp);
@@ -43,21 +44,17 @@ static void fn_string_upper(VMContext *c) {
 }
 
 static void fn_string_comparei(VMContext *c) {
-	const int array2 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *str2 = ArrayHandle_GetString(c, array2);
-	const int array1 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *str1 = ArrayHandle_GetString(c, array1);
-	debug(DBG_SYSCALLS, "String:comparei");
+	const char *str2 = VM_PopString(c);
+	const char *str1 = VM_PopString(c);
+	debug(DBG_SYSCALLS, "String:comparei '%s' '%s'", str1, str2);
 	const int ret = strcasecmp(str1, str2);
 	VM_Push(c, ret, VAR_TYPE_INT32);
 }
 
 static void fn_string_compare(VMContext *c) {
-	const int array2 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *str2 = ArrayHandle_GetString(c, array2);
-	const int array1 = VM_Pop(c, 0x10000 | VAR_TYPE_CHAR);
-	const char *str1 = ArrayHandle_GetString(c, array1);
-	debug(DBG_SYSCALLS, "String:compare");
+	const char *str2 = VM_PopString(c);
+	const char *str1 = VM_PopString(c);
+	debug(DBG_SYSCALLS, "String:compare '%s' '%s'", str1, str2);
 	const int ret = strcmp(str1, str2);
 	VM_Push(c, ret, VAR_TYPE_INT32);
 }

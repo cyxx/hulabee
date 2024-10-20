@@ -75,69 +75,88 @@ class Autorun {
       Room:newRoom(MainScreen)
     }
   }
+}
 
-  class MainScreen from Room {
-    //{{POLYGONS
-    #define POLY_PLAYSONNYRACE [100,0,580,300]
-    #define POLY_INSTALLAOL [200,330,450,426]
-    #define POLY_INSTALLMOOPTREASURE [0,275,182,434]
-    #define POLY_EXIT [480,350,550,400]
-    //}}POLYGONS
+class MainScreen from Room {
+  //{{POLYGONS
+  #define POLY_PLAYSONNYRACE [100,0,580,300]
+  #define POLY_INSTALLAOL [200,330,450,426]
+  #define POLY_INSTALLMOOPTREASURE [0,275,182,434]
+  #define POLY_EXIT [480,350,550,400]
+  //}}POLYGONS
 
-    void onCreate() {
-      //{{INITCLICKPOINTS
-      INITBACKGROUND(BG_MAINSCREEN)
-      INITCLICKPOINT(InstallAOL,ANIM_AUTORUN,4,0,0,POLY_INSTALLAOL)
-      INITCLICKPOINT(InstallMoopTreasure,ANIM_AUTORUN,2,0,0,POLY_INSTALLMOOPTREASURE)
-      INITCLICKPOINT(Exit,ANIM_AUTORUN,5,0,0,POLY_EXIT)
-      INITCLICKPOINT(PlaySonnyRace,ANIM_AUTORUN,6,0,0,POLY_PLAYSONNYRACE)
-      //}}INITCLICKPOINTS
+  void onCreate() {
+    //{{INITCLICKPOINTS
+    INITBACKGROUND(BG_MAINSCREEN)
+    INITCLICKPOINT(InstallAOL,ANIM_AUTORUN,4,0,0,POLY_INSTALLAOL)
+    INITCLICKPOINT(InstallMoopTreasure,ANIM_AUTORUN,2,0,0,POLY_INSTALLMOOPTREASURE)
+    INITCLICKPOINT(Exit,ANIM_AUTORUN,5,0,0,POLY_EXIT)
+    INITCLICKPOINT(PlaySonnyRace,ANIM_AUTORUN,6,0,0,POLY_PLAYSONNYRACE)
+    //}}INITCLICKPOINTS
 
-      from.onCreate()
+    from.onCreate()
+  }
+}
+
+class PlaySonnyRace from ClickPoint {
+  void onClick(int x, int y) {
+    if (Autorun:checkSystem()) {
+      System:spawn("SonnyRace.exe")
+      quit
     }
   }
+}
 
-  class InstallMoopTreasure from ClickPoint {
-    int install
+class InstallAOL from ClickPoint {
+  void onClick(int x, int y) {
+    string command = "AOL\\SETUP.EXE"
+    if (FileIO:exists(command)) {
+      System:spawn(command)
+      quit
+    }
+  }
+}
 
-    void onEnter() {
-      if (System:readINI("$system\\hulabee.ini", "MoopTreasure", "Installed", "0") $== "1") {
-        string command = System:readINI("$system\\hulabee.ini", "MoopTreasure", "Start", "")
-        if (FileIO:exists(command)) {
-          install = false
-          play(2)
-        } else {
-          install = true
-          play(3)
-        }
+class InstallMoopTreasure from ClickPoint {
+  int install
+
+  void onEnter() {
+    if (System:readINI("$system\\hulabee.ini", "MoopTreasure", "Installed", "0") $== "1") {
+      string command = System:readINI("$system\\hulabee.ini", "MoopTreasure", "Start", "")
+      if (FileIO:exists(command)) {
+        install = false
+        play(2)
       } else {
         install = true
         play(3)
       }
-    }
-
-    void onClick(int x, int y) {
-      if (Autorun:checkSystem()) {
-        string command
-        if (install) {
-          command = "\"MoopTreasure Setup\""
-        } else {
-          command = System:readINI("$system\\hulabee.ini", "MoopTreasure", "Start", "")
-          string path[] = FileIO:splitPath(command)
-          if (path[?1] && path[?2]) {
-            System:chdir(path[1] + path[2])
-          }
-        }
-        System:spawn(command)
-        quit
-      }
+    } else {
+      install = true
+      play(3)
     }
   }
 
-  class Exit from ClickPoint {
-    void onClick(int x, int y) {
+  void onClick(int x, int y) {
+    if (Autorun:checkSystem()) {
+      string command
+      if (install) {
+        command = "\"MoopTreasure Setup\""
+      } else {
+        command = System:readINI("$system\\hulabee.ini", "MoopTreasure", "Start", "")
+        string path[] = FileIO:splitPath(command)
+        if (path[?1] && path[?2]) {
+          System:chdir(path[1] + path[2])
+        }
+      }
+      System:spawn(command)
       quit
     }
+  }
+}
+
+class Exit from ClickPoint {
+  void onClick(int x, int y) {
+    quit
   }
 }
 ```
@@ -162,18 +181,19 @@ Parameter | Comment
 Section | Name | Value | Source (Game code/Interpreter) | Comment
 ---|---|---|---|---
 Data | HeapSize | Integer | Game code/Interpreter |
-data | PreloadSpeed | Integer | Interpreter |
+Data | PreloadSpeed | Integer | Interpreter |
 Debug | CAssert | Boolean | Interpreter |
-debug | Debugger | Boolean | Interpreter |
+Debug | Debugger | Boolean | Interpreter |
 Debug | DebugVC | Boolean | Intepreter |
 Debug | DebugOutputWindow | Boolean | Interpreter |
 Debug | EnableCheatKeys | Integer | Game code | Set to 100801 to enable
 Debug | Keys | Boolean | Interpreter |
 Debug | LoadDelay | Integer | Interpreter |
 Debug | PerformanceData | Boolean | Interpreter |
-debug | ShowBlitRegions | Boolean | Interpreter |
-debug | ShowFrameNumber | Boolean | Interpreter |
+Debug | ShowBlitRegions | Boolean | Interpreter |
+Debug | ShowFrameNumber | Boolean | Interpreter |
 Debug | ShowLoads | Boolean | Interpreter |
+Debug | whisk | Boolean | Interpreter |
 General | Audio | Boolean | Game code |
 General | ClosedCaptioning | Boolean | Game code |
 General | DisableSoundSystem | Boolean | Interpreter |
@@ -196,6 +216,6 @@ Video | DisplayYPos | Integer | Interpreter |
 Video | DisplayWidth | Integer | Interpreter |
 Video | DisplayHeight | Integer | Interpreter |
 Video | Fullscreen | Boolean | Interpreter |
-video | vblank | Boolean | Interpreter |
+Video | vblank | Boolean | Interpreter |
 
 
