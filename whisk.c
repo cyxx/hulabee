@@ -21,16 +21,16 @@ static uint32_t _current_frame;
 
 // host debug interface (Sauce Interpreter)
 struct hostdbg_vtbl {
-	void *f00;
+	void *f00_get_class_name;
 	void (*__thiscall f04_load_class)(uintptr_t, const char *);
-	void *f08;
+	void *f08_get_object;
 	void (*__thiscall f0c_dump_current_thread)(uintptr_t);
-	void (*__thiscall f10_dump_class)(uintptr_t, uint32_t);
+	void (*__thiscall f10_dump_class)(uintptr_t, uint32_t); // base:2000000
 	void (*__thiscall f14_dump_object)(uintptr_t, uint32_t); // base:3000000
 	void (*__thiscall f18_dump_array)(uintptr_t, uint32_t); // base:4000000
 	void (*__thiscall f1c_dump_stack)(uintptr_t);
-	void (*__thiscall f20_dump_thread)(uintptr_t);
-	void *f24;
+	void (*__thiscall f20_dump_thread)(uintptr_t, uint8_t); // base:5000000
+	void (*__thiscall f24_dump_string)(uintptr_t, uint32_t);
 	void (*__thiscall f28_log_asset_load)(uintptr_t, uint32_t);
 	void *f2c;
 	void *f30;
@@ -46,34 +46,49 @@ struct hostdbg_vtbl {
 	void *f58_write_breakpoints;
 	void *f5c; // same as f4c
 	void *f60;
-	void *f64;
-	void (*_thiscall f68)(uintptr_t); // calls whisk.f20
+	void (*__thiscall f64_break_tiner_frame)(uintptr_t);
+	void (*__thiscall f68_dump)(uintptr_t); // calls whisk.f20
 	void *f6c;
-	void *f70_gc;
+	void (*__thiscall f70_gc)(uintptr_t, uint32_t);
 	void *f74;
 	void *f78_system_error; // calls whisk.f00
 	void *f7c_error; // calls whisk.f00
 	void *f80_warning; // calls whisk.f00
-	void *f84_log; // calls whisk.f00
-	void *f88_log0; // calls whisk.f00
-	void *f8c_log640000; // calls whisk.f00
-	void *f90_debug;
-	void *f94; // calls whisk.f14
+	void *f84_log0; // calls whisk.f00
+	void *f88_log1; // calls whisk.f00
+	void *f8c_log2; // calls whisk.f00
+	void *f90_format_string;
+	void (*__thiscall f94_breakpoint)(uintptr_t); // calls whisk.f14
 	void (*__thiscall f98_cmd)(uintptr_t, const char *);
-	void *f9c; // calls whisk.f0c
+	void (*__thiscall f9c_stack_frame)(uintptr_t); // calls whisk.f0c
 	void *fa0;
-	void *fa4;
-	void *fa8;
+	void (*__thiscall fa4_get_counter)(uintptr_t); // log if returns 96
+	void (*__thiscall fa8_set_module_info)(uintptr_t, const char *, const char *, uintptr_t); // calls whisk.f20
+};
+
+#define HOSTDBG_LOG_THREAD            0x1
+#define HOSTDBG_BREAKPOINT_OPCODE     0x4
+#define HOSTDBG_BREAKPOINT_FRAME      0x8
+#define HOSTDBG_BREAKPOINT_ADDR      0x10
+#define HOSTDBG_GARBAGE_COLLECT      0x80
+#define HOSTDBG_LOG_ARRAYS          0x100
+
+struct hostdbg_members {
+	uintptr_t *vtable;
+	uint32_t mask;
+	uint32_t break_addr;
+	uint32_t break_timer_frame;
+	uint32_t log_asset_loading;
 };
 
 static void hostdbg_dump() {
 	uintptr_t vtbl = *(const uintptr_t *)_hostdbg_ptr;
-	(((struct hostdbg_vtbl *)vtbl)->f20_dump_thread)(_hostdbg_ptr);
+	(((struct hostdbg_vtbl *)vtbl)->f20_dump_thread)(_hostdbg_ptr, 1);
 	(((struct hostdbg_vtbl *)vtbl)->f0c_dump_current_thread)(_hostdbg_ptr);
 	(((struct hostdbg_vtbl *)vtbl)->f1c_dump_stack)(_hostdbg_ptr);
-	for (int i = 0; i < 4; ++i) {
-		(((struct hostdbg_vtbl *)vtbl)->f10_dump_class)(_hostdbg_ptr, 2000001 + i);
-	}
+	(((struct hostdbg_vtbl *)vtbl)->f10_dump_class)(_hostdbg_ptr, -1);
+	(((struct hostdbg_vtbl *)vtbl)->f14_dump_object)(_hostdbg_ptr, -1);
+	(((struct hostdbg_vtbl *)vtbl)->f18_dump_array)(_hostdbg_ptr, -1);
 }
 
 static void hostdbg_cmd(const char *s) {
@@ -104,6 +119,7 @@ static __stdcall void f04_init(uintptr_t hostdbg_ptr) {
 	_hostdbg_ptr = hostdbg_ptr;
 	// check_whisk_ptr(hostdbg_ptr);
 	hostdbg_init();
+//	((struct hostdbg_members *)hostdbg_ptr)->mask = 0x1FF;
 }
 
 static __stdcall void f08_boot(uint32_t code) {
@@ -114,7 +130,7 @@ static __stdcall void f08_boot(uint32_t code) {
 	}
 }
 
-static __stdcall void f0c_call_stack(int a, int b) {
+static __stdcall void f0c_stack_frame(int a, int b) {
 	// fprintf(stderr, "WARNING: f0c %x %x\n", a, b);
 }
 
@@ -132,12 +148,8 @@ static __stdcall void f18() {
 	fprintf(stderr, "WARNING: f18\n");
 }
 
-static __stdcall void f20(const char *a, const char *b, const char *(*__stdcall f)(uint32_t, uint32_t)) {
+static __stdcall void f20(const char *a, const char *b, const char *(*__stdcall f)(uint32_t num, uint32_t type)) {
 	fprintf(stderr, "WARNING: f20 %s, %s, sub_%x\n", a, b, f);
-	const char *s = f(0, 0);
-	if (s) {
-		fprintf(_out, "%s\n", s);
-	}
 }
 
 static __stdcall void f28_frame() {
@@ -157,7 +169,7 @@ static void *funcs_tbl[] = {
 	f00_log,
 	f04_init,
 	f08_boot,
-	f0c_call_stack,
+	f0c_stack_frame,
 	f10_fini,
 	f14_breakpoint,
 	f18,
